@@ -11,15 +11,15 @@ const STORAGE_TYPE =
   (process.env.NEXT_PUBLIC_STORAGE_TYPE as
     | 'localstorage'
     | 'redis'
-    | 'd1'
     | 'upstash'
     | undefined) || 'localstorage';
 
 // 生成签名
 async function generateSignature(
   data: string,
-  secret: string,
-): Promise<string> {
+  secret: string
+): Promise<string>
+{
   const encoder = new TextEncoder();
   const keyData = encoder.encode(secret);
   const messageData = encoder.encode(data);
@@ -30,7 +30,7 @@ async function generateSignature(
     keyData,
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign'],
+    ['sign']
   );
 
   // 生成签名
@@ -43,7 +43,8 @@ async function generateSignature(
 }
 
 // 生成认证Cookie（带签名）
-async function generateAuthCookie(username: string): Promise<string> {
+async function generateAuthCookie(username: string): Promise<string>
+{
   const authData: any = {
     role: 'user',
     username,
@@ -58,40 +59,49 @@ async function generateAuthCookie(username: string): Promise<string> {
   return encodeURIComponent(JSON.stringify(authData));
 }
 
-export async function POST(req: NextRequest) {
-  try {
+export async function POST(req: NextRequest)
+{
+  try
+  {
     // localstorage 模式下不支持注册
-    if (STORAGE_TYPE === 'localstorage') {
+    if (STORAGE_TYPE === 'localstorage')
+    {
       return NextResponse.json(
         { error: '当前模式不支持注册' },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
     const config = await getConfig();
     // 校验是否开放注册
-    if (!config.UserConfig.AllowRegister) {
+    if (!config.UserConfig.AllowRegister)
+    {
       return NextResponse.json({ error: '当前未开放注册' }, { status: 400 });
     }
 
     const { username, password } = await req.json();
 
-    if (!username || typeof username !== 'string') {
+    if (!username || typeof username !== 'string')
+    {
       return NextResponse.json({ error: '用户名不能为空' }, { status: 400 });
     }
-    if (!password || typeof password !== 'string') {
+    if (!password || typeof password !== 'string')
+    {
       return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
     }
 
     // 检查是否和管理员重复
-    if (username === process.env.USERNAME) {
+    if (username === process.env.USERNAME)
+    {
       return NextResponse.json({ error: '用户已存在' }, { status: 400 });
     }
 
-    try {
+    try
+    {
       // 检查用户是否已存在
       const exist = await db.checkUserExist(username);
-      if (exist) {
+      if (exist)
+      {
         return NextResponse.json({ error: '用户已存在' }, { status: 400 });
       }
 
@@ -119,11 +129,13 @@ export async function POST(req: NextRequest) {
       });
 
       return response;
-    } catch (err) {
+    } catch (err)
+    {
       console.error('数据库注册失败', err);
       return NextResponse.json({ error: '数据库错误' }, { status: 500 });
     }
-  } catch (error) {
+  } catch (error)
+  {
     console.error('注册接口异常', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

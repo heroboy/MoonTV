@@ -3,94 +3,57 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: write
+      - 'v*' # 当推送以 'v' 开头的标签时触发
 
 jobs:
   release:
     runs-on: ubuntu-latest
-    env:
-      TZ: Asia/Shanghai
+
     steps:
-      - name: Checkout source code
+      - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
-      - name: Extract version from tag
-        id: version
-        run: |
-          VERSION=${GITHUB_REF#refs/tags/v}
-          TAG_NAME=${GITHUB_REF#refs/tags/}
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "tag=$TAG_NAME" >> $GITHUB_OUTPUT
-          echo "Version: $VERSION"
-          echo "Tag: $TAG_NAME"
-
-      - name: Get tag message
-        id: tag_message
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG_NAME=${{ steps.version.outputs.tag }}
-          RELEASE_BODY=$(gh release view "$TAG_NAME" --json body -q .body || echo "")
-          printf '%s\n' "$RELEASE_BODY" > /tmp/tag_message.txt
-          echo "Tag message saved to /tmp/tag_message.txt"
-          echo "Tag message content:"
-          cat /tmp/tag_message.txt
+          fetch-depth: 0 # 获取完整的git历史，包括标签
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '18'
+          cache: 'npm'
 
-      - name: Update version files and generate changelog
-        run: |
-          CURRENT_DATE=$(date +%Y-%m-%d)
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG_MESSAGE=$(cat /tmp/tag_message.txt)
-          echo "Updating CHANGELOG file..."
-          {
-            echo "## [$VERSION] - $CURRENT_DATE"
-            echo ""
-            cat /tmp/tag_message.txt
-            echo ""
-          } > /tmp/new_entry.txt
+      - name: Install dependencies
+        run: npm ci
 
-          if [ -f "CHANGELOG" ]; then
-            cp CHANGELOG CHANGELOG.bak
-            cat /tmp/new_entry.txt CHANGELOG.bak > CHANGELOG
-          else
-            cp /tmp/new_entry.txt CHANGELOG
-          fi
-          echo "✅ Updated CHANGELOG with new entry for version $VERSION"
+      - name: Run convert-changelog script
+        run: node scripts/convert-changelog.js
+        env:
+          GITHUB_ACTIONS: 'true' # 告诉脚本这是在GitHub Actions环境中运行
 
-          echo "Updating VERSION.txt..."
-          echo "$VERSION" > VERSION.txt
-          echo "✅ Updated VERSION.txt to $VERSION"
+      - name: Create Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            ## 变更日志
 
-          echo "Generating changelog TypeScript file..."
-          node scripts/convert-changelog.js
+            请查看 [CHANGELOG](CHANGELOG) 文件了解详细变更内容。
 
-          echo "Updating version.ts..."
-            sed -i "s/const CURRENT_VERSION = '[^']*';/const CURRENT_VERSION = '$VERSION';/" src/lib/version.ts
-            echo "✅ Updated version.ts to $VERSION"
+            ## 下载
 
-      - name: Commit generated files
-        run: |
-          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add CHANGELOG VERSION.txt src/lib/changelog.ts src/lib/version.ts
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "chore: Bump to ${{ steps.version.outputs.version }}"
-            git push origin HEAD:main
-            echo "Committed and pushed generated files"
-          fi
+            - [Source code (zip)](https://github.com/${{ github.repository }}/archive/${{ github.ref }}.zip)
+            - [Source code (tar.gz)](https://github.com/${{ github.repository }}/archive/${{ github.ref }}.tar.gz)
+          draft: false
+          prerelease: false
+
+      - name: Build project
+        run: npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-files
+          path: .next/
+          retention-days: 30

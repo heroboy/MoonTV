@@ -2,28 +2,31 @@
 
 'use client';
 
-import {
-  Bug,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Download,
-  Plus,
-  RefreshCw,
-  X,
-} from 'lucide-react';
+import
+  {
+    Bug,
+    CheckCircle,
+    ChevronDown,
+    ChevronUp,
+    Download,
+    Plus,
+    RefreshCw,
+    X,
+  } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 import { changelog, ChangelogEntry } from '@/lib/changelog';
 import { compareVersions, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
 
-interface VersionPanelProps {
+interface VersionPanelProps
+{
   isOpen: boolean;
   onClose: () => void;
 }
 
-interface RemoteChangelogEntry {
+interface RemoteChangelogEntry
+{
   version: string;
   date: string;
   added: string[];
@@ -34,7 +37,8 @@ interface RemoteChangelogEntry {
 export const VersionPanel: React.FC<VersionPanelProps> = ({
   isOpen,
   onClose,
-}) => {
+}) =>
+{
   const [mounted, setMounted] = useState(false);
   const [remoteChangelog, setRemoteChangelog] = useState<ChangelogEntry[]>([]);
   const [hasUpdate, setIsHasUpdate] = useState(false);
@@ -42,66 +46,79 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
   const [showRemoteContent, setShowRemoteContent] = useState(false);
 
   // 确保组件已挂载
-  useEffect(() => {
+  useEffect(() =>
+  {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
   // 获取远程变更日志
-  useEffect(() => {
-    if (isOpen) {
+  useEffect(() =>
+  {
+    if (isOpen)
+    {
       fetchRemoteChangelog();
     }
   }, [isOpen]);
 
   // 获取远程变更日志
-  const fetchRemoteChangelog = async () => {
-    try {
+  const fetchRemoteChangelog = async () =>
+  {
+    try
+    {
       const response = await fetch(
-        'https://raw.githubusercontent.com/LunaTechLab/MoonTV/main/CHANGELOG'
+        'https://raw.githubusercontent.com/Stardm0/MoonTV/main/CHANGELOG'
       );
-      if (response.ok) {
+      if (response.ok)
+      {
         const content = await response.text();
         const parsed = parseChangelog(content);
         setRemoteChangelog(parsed);
 
         // 检查是否有更新
-        if (parsed.length > 0) {
+        if (parsed.length > 0)
+        {
           const latest = parsed[0];
           setLatestVersion(latest.version);
           setIsHasUpdate(
             compareVersions(latest.version) === UpdateStatus.HAS_UPDATE
           );
         }
-      } else {
+      } else
+      {
         console.error(
           '获取远程变更日志失败:',
           response.status,
           response.statusText
         );
       }
-    } catch (error) {
+    } catch (error)
+    {
       console.error('获取远程变更日志失败:', error);
     }
   };
 
   // 解析变更日志格式
-  const parseChangelog = (content: string): RemoteChangelogEntry[] => {
+  const parseChangelog = (content: string): RemoteChangelogEntry[] =>
+  {
     const lines = content.split('\n');
     const versions: RemoteChangelogEntry[] = [];
     let currentVersion: RemoteChangelogEntry | null = null;
     let currentSection: string | null = null;
     let inVersionContent = false;
 
-    for (const line of lines) {
+    for (const line of lines)
+    {
       const trimmedLine = line.trim();
 
       // 匹配版本行: ## [X.Y.Z] - YYYY-MM-DD
       const versionMatch = trimmedLine.match(
         /^## \[([\d.]+)\] - (\d{4}-\d{2}-\d{2})$/
       );
-      if (versionMatch) {
-        if (currentVersion) {
+      if (versionMatch)
+      {
+        if (currentVersion)
+        {
           versions.push(currentVersion);
         }
 
@@ -118,27 +135,35 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
       }
 
       // 如果遇到下一个版本或到达文件末尾，停止处理当前版本
-      if (inVersionContent && currentVersion) {
+      if (inVersionContent && currentVersion)
+      {
         // 匹配章节标题
-        if (trimmedLine === '### Added') {
+        if (trimmedLine === '### Added')
+        {
           currentSection = 'added';
           continue;
-        } else if (trimmedLine === '### Changed') {
+        } else if (trimmedLine === '### Changed')
+        {
           currentSection = 'changed';
           continue;
-        } else if (trimmedLine === '### Fixed') {
+        } else if (trimmedLine === '### Fixed')
+        {
           currentSection = 'fixed';
           continue;
         }
 
         // 匹配条目: - 内容
-        if (trimmedLine.startsWith('- ') && currentSection) {
+        if (trimmedLine.startsWith('- ') && currentSection)
+        {
           const entry = trimmedLine.substring(2);
-          if (currentSection === 'added') {
+          if (currentSection === 'added')
+          {
             currentVersion.added.push(entry);
-          } else if (currentSection === 'changed') {
+          } else if (currentSection === 'changed')
+          {
             currentVersion.changed.push(entry);
-          } else if (currentSection === 'fixed') {
+          } else if (currentSection === 'fixed')
+          {
             currentVersion.fixed.push(entry);
           }
         }
@@ -146,7 +171,8 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
     }
 
     // 添加最后一个版本
-    if (currentVersion) {
+    if (currentVersion)
+    {
       versions.push(currentVersion);
     }
 
@@ -158,19 +184,19 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
     entry: ChangelogEntry | RemoteChangelogEntry,
     isCurrentVersion = false,
     isRemote = false
-  ) => {
+  ) =>
+  {
     const isUpdate = isRemote && hasUpdate && entry.version === latestVersion;
 
     return (
       <div
         key={entry.version}
-        className={`p-4 rounded-lg border ${
-          isCurrentVersion
-            ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
-            : isUpdate
+        className={`p-4 rounded-lg border ${isCurrentVersion
+          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
+          : isUpdate
             ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
             : 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700'
-        }`}
+          }`}
       >
         {/* 版本标题 */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3'>
@@ -321,7 +347,7 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
                     </div>
                   </div>
                   <a
-                    href='https://github.com/LunaTechLab/MoonTV'
+                    href='https://github.com/Stardm0/MoonTV'
                     target='_blank'
                     rel='noopener noreferrer'
                     className='inline-flex items-center justify-center gap-2 px-3 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-xs sm:text-sm rounded-lg transition-colors shadow-sm w-full'
@@ -351,7 +377,7 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
                     </div>
                   </div>
                   <a
-                    href='https://github.com/LunaTechLab/MoonTV'
+                    href='https://github.com/Stardm0/MoonTV'
                     target='_blank'
                     rel='noopener noreferrer'
                     className='inline-flex items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-xs sm:text-sm rounded-lg transition-colors shadow-sm w-full'
@@ -392,7 +418,8 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
                 {showRemoteContent && remoteChangelog.length > 0 && (
                   <div className='space-y-4'>
                     {remoteChangelog
-                      .filter((entry) => {
+                      .filter((entry) =>
+                      {
                         // 找到第一个本地版本，过滤掉本地已有的版本
                         const localVersions = changelog.map(
                           (local) => local.version
@@ -402,11 +429,10 @@ export const VersionPanel: React.FC<VersionPanelProps> = ({
                       .map((entry, index) => (
                         <div
                           key={index}
-                          className={`p-4 rounded-lg border ${
-                            entry.version === latestVersion
-                              ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
-                              : 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700'
-                          }`}
+                          className={`p-4 rounded-lg border ${entry.version === latestVersion
+                            ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800'
+                            : 'bg-gray-50 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700'
+                            }`}
                         >
                           <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3'>
                             <div className='flex flex-wrap items-center gap-2'>

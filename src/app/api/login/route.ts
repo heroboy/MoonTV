@@ -11,15 +11,15 @@ const STORAGE_TYPE =
   (process.env.NEXT_PUBLIC_STORAGE_TYPE as
     | 'localstorage'
     | 'redis'
-    | 'd1'
     | 'upstash'
     | undefined) || 'localstorage';
 
 // 生成签名
 async function generateSignature(
   data: string,
-  secret: string,
-): Promise<string> {
+  secret: string
+): Promise<string>
+{
   const encoder = new TextEncoder();
   const keyData = encoder.encode(secret);
   const messageData = encoder.encode(data);
@@ -30,7 +30,7 @@ async function generateSignature(
     keyData,
     { name: 'HMAC', hash: 'SHA-256' },
     false,
-    ['sign'],
+    ['sign']
   );
 
   // 生成签名
@@ -47,16 +47,19 @@ async function generateAuthCookie(
   username?: string,
   password?: string,
   role?: 'owner' | 'admin' | 'user',
-  includePassword = false,
-): Promise<string> {
+  includePassword = false
+): Promise<string>
+{
   const authData: any = { role: role || 'user' };
 
   // 只在需要时包含 password
-  if (includePassword && password) {
+  if (includePassword && password)
+  {
     authData.password = password;
   }
 
-  if (username && process.env.PASSWORD) {
+  if (username && process.env.PASSWORD)
+  {
     authData.username = username;
     // 使用密码作为密钥对用户名进行签名
     const signature = await generateSignature(username, process.env.PASSWORD);
@@ -67,14 +70,18 @@ async function generateAuthCookie(
   return encodeURIComponent(JSON.stringify(authData));
 }
 
-export async function POST(req: NextRequest) {
-  try {
+export async function POST(req: NextRequest)
+{
+  try
+  {
     // 本地 / localStorage 模式——仅校验固定密码
-    if (STORAGE_TYPE === 'localstorage') {
+    if (STORAGE_TYPE === 'localstorage')
+    {
       const envPassword = process.env.PASSWORD;
 
       // 未配置 PASSWORD 时直接放行
-      if (!envPassword) {
+      if (!envPassword)
+      {
         const response = NextResponse.json({ ok: true });
 
         // 清除可能存在的认证cookie
@@ -90,14 +97,16 @@ export async function POST(req: NextRequest) {
       }
 
       const { password } = await req.json();
-      if (typeof password !== 'string') {
+      if (typeof password !== 'string')
+      {
         return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
       }
 
-      if (password !== envPassword) {
+      if (password !== envPassword)
+      {
         return NextResponse.json(
           { ok: false, error: '密码错误' },
-          { status: 401 },
+          { status: 401 }
         );
       }
 
@@ -107,7 +116,7 @@ export async function POST(req: NextRequest) {
         undefined,
         password,
         'user',
-        true,
+        true
       ); // localstorage 模式包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -126,10 +135,12 @@ export async function POST(req: NextRequest) {
     // 数据库 / redis 模式——校验用户名并尝试连接数据库
     const { username, password } = await req.json();
 
-    if (!username || typeof username !== 'string') {
+    if (!username || typeof username !== 'string')
+    {
       return NextResponse.json({ error: '用户名不能为空' }, { status: 400 });
     }
-    if (!password || typeof password !== 'string') {
+    if (!password || typeof password !== 'string')
+    {
       return NextResponse.json({ error: '密码不能为空' }, { status: 400 });
     }
 
@@ -137,14 +148,15 @@ export async function POST(req: NextRequest) {
     if (
       username === process.env.USERNAME &&
       password === process.env.PASSWORD
-    ) {
+    )
+    {
       // 验证成功，设置认证cookie
       const response = NextResponse.json({ ok: true });
       const cookieValue = await generateAuthCookie(
         username,
         password,
         'owner',
-        false,
+        false
       ); // 数据库模式不包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -158,23 +170,27 @@ export async function POST(req: NextRequest) {
       });
 
       return response;
-    } else if (username === process.env.USERNAME) {
+    } else if (username === process.env.USERNAME)
+    {
       return NextResponse.json({ error: '用户名或密码错误' }, { status: 401 });
     }
 
     const config = await getConfig();
     const user = config.UserConfig.Users.find((u) => u.username === username);
-    if (user && user.banned) {
+    if (user && user.banned)
+    {
       return NextResponse.json({ error: '用户被封禁' }, { status: 401 });
     }
 
     // 校验用户密码
-    try {
+    try
+    {
       const pass = await db.verifyUser(username, password);
-      if (!pass) {
+      if (!pass)
+      {
         return NextResponse.json(
           { error: '用户名或密码错误' },
-          { status: 401 },
+          { status: 401 }
         );
       }
 
@@ -184,7 +200,7 @@ export async function POST(req: NextRequest) {
         username,
         password,
         user?.role || 'user',
-        false,
+        false
       ); // 数据库模式不包含 password
       const expires = new Date();
       expires.setDate(expires.getDate() + 7); // 7天过期
@@ -198,11 +214,13 @@ export async function POST(req: NextRequest) {
       });
 
       return response;
-    } catch (err) {
+    } catch (err)
+    {
       console.error('数据库验证失败', err);
       return NextResponse.json({ error: '数据库错误' }, { status: 500 });
     }
-  } catch (error) {
+  } catch (error)
+  {
     console.error('登录接口异常', error);
     return NextResponse.json({ error: '服务器错误' }, { status: 500 });
   }

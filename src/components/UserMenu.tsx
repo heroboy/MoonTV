@@ -2,17 +2,18 @@
 
 'use client';
 
-import {
-  Check,
-  ChevronDown,
-  ExternalLink,
-  KeyRound,
-  LogOut,
-  Settings,
-  Shield,
-  User,
-  X,
-} from 'lucide-react';
+import
+  {
+    Check,
+    ChevronDown,
+    ExternalLink,
+    KeyRound,
+    LogOut,
+    Settings,
+    Shield,
+    User,
+    X,
+  } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -22,12 +23,14 @@ import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
 
 import { VersionPanel } from './VersionPanel';
 
-interface AuthInfo {
+interface AuthInfo
+{
   username?: string;
   role?: 'owner' | 'admin' | 'user';
 }
 
-export const UserMenu: React.FC = () => {
+export const UserMenu: React.FC = () =>
+{
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -39,6 +42,7 @@ export const UserMenu: React.FC = () => {
 
   // 设置相关状态
   const [defaultAggregateSearch, setDefaultAggregateSearch] = useState(true);
+  const [defaultStreamSearch, setDefaultStreamSearch] = useState(true);
   const [doubanProxyUrl, setDoubanProxyUrl] = useState('');
   const [enableOptimization, setEnableOptimization] = useState(true);
   const [doubanDataSource, setDoubanDataSource] = useState('direct');
@@ -57,7 +61,6 @@ export const UserMenu: React.FC = () => {
       label: '豆瓣 CDN By CMLiussss（腾讯云）',
     },
     { value: 'cmliussss-cdn-ali', label: '豆瓣 CDN By CMLiussss（阿里云）' },
-    { value: 'cors-anywhere', label: 'Cors Anywhere（20 qpm）' },
     { value: 'custom', label: '自定义代理' },
   ];
 
@@ -85,13 +88,16 @@ export const UserMenu: React.FC = () => {
   const [isChecking, setIsChecking] = useState(true);
 
   // 确保组件已挂载
-  useEffect(() => {
+  useEffect(() =>
+  {
     setMounted(true);
   }, []);
 
   // 获取认证信息和存储类型
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
+  useEffect(() =>
+  {
+    if (typeof window !== 'undefined')
+    {
       const auth = getAuthInfoFromBrowserCookie();
       setAuthInfo(auth);
 
@@ -102,30 +108,45 @@ export const UserMenu: React.FC = () => {
   }, []);
 
   // 从 localStorage 读取设置
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
+  useEffect(() =>
+  {
+    if (typeof window !== 'undefined')
+    {
       const savedAggregateSearch = localStorage.getItem(
         'defaultAggregateSearch'
       );
-      if (savedAggregateSearch !== null) {
+      if (savedAggregateSearch !== null)
+      {
         setDefaultAggregateSearch(JSON.parse(savedAggregateSearch));
+      }
+
+      const savedDefaultStreamSearch = localStorage.getItem(
+        'defaultStreamSearch'
+      );
+      if (savedDefaultStreamSearch !== null)
+      {
+        setDefaultStreamSearch(JSON.parse(savedDefaultStreamSearch));
       }
 
       const savedDoubanDataSource = localStorage.getItem('doubanDataSource');
       const defaultDoubanProxyType =
         (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY_TYPE || 'direct';
-      if (savedDoubanDataSource !== null) {
+      if (savedDoubanDataSource !== null)
+      {
         setDoubanDataSource(savedDoubanDataSource);
-      } else if (defaultDoubanProxyType) {
+      } else if (defaultDoubanProxyType)
+      {
         setDoubanDataSource(defaultDoubanProxyType);
       }
 
       const savedDoubanProxyUrl = localStorage.getItem('doubanProxyUrl');
       const defaultDoubanProxy =
         (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY || '';
-      if (savedDoubanProxyUrl !== null) {
+      if (savedDoubanProxyUrl !== null)
+      {
         setDoubanProxyUrl(savedDoubanProxyUrl);
-      } else if (defaultDoubanProxy) {
+      } else if (defaultDoubanProxy)
+      {
         setDoubanProxyUrl(defaultDoubanProxy);
       }
 
@@ -134,9 +155,11 @@ export const UserMenu: React.FC = () => {
       );
       const defaultDoubanImageProxyType =
         (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY_TYPE || 'direct';
-      if (savedDoubanImageProxyType !== null) {
+      if (savedDoubanImageProxyType !== null)
+      {
         setDoubanImageProxyType(savedDoubanImageProxyType);
-      } else if (defaultDoubanImageProxyType) {
+      } else if (defaultDoubanImageProxyType)
+      {
         setDoubanImageProxyType(defaultDoubanImageProxyType);
       }
 
@@ -145,29 +168,37 @@ export const UserMenu: React.FC = () => {
       );
       const defaultDoubanImageProxyUrl =
         (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY || '';
-      if (savedDoubanImageProxyUrl !== null) {
+      if (savedDoubanImageProxyUrl !== null)
+      {
         setDoubanImageProxyUrl(savedDoubanImageProxyUrl);
-      } else if (defaultDoubanImageProxyUrl) {
+      } else if (defaultDoubanImageProxyUrl)
+      {
         setDoubanImageProxyUrl(defaultDoubanImageProxyUrl);
       }
 
       const savedEnableOptimization =
         localStorage.getItem('enableOptimization');
-      if (savedEnableOptimization !== null) {
+      if (savedEnableOptimization !== null)
+      {
         setEnableOptimization(JSON.parse(savedEnableOptimization));
       }
     }
   }, []);
 
   // 版本检查
-  useEffect(() => {
-    const checkUpdate = async () => {
-      try {
+  useEffect(() =>
+  {
+    const checkUpdate = async () =>
+    {
+      try
+      {
         const status = await checkForUpdates();
         setUpdateStatus(status);
-      } catch (error) {
+      } catch (error)
+      {
         console.warn('版本检查失败:', error);
-      } finally {
+      } finally
+      {
         setIsChecking(false);
       }
     };
@@ -176,65 +207,82 @@ export const UserMenu: React.FC = () => {
   }, []);
 
   // 点击外部区域关闭下拉框
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isDoubanDropdownOpen) {
+  useEffect(() =>
+  {
+    const handleClickOutside = (event: MouseEvent) =>
+    {
+      if (isDoubanDropdownOpen)
+      {
         const target = event.target as Element;
-        if (!target.closest('[data-dropdown="douban-datasource"]')) {
+        if (!target.closest('[data-dropdown="douban-datasource"]'))
+        {
           setIsDoubanDropdownOpen(false);
         }
       }
     };
 
-    if (isDoubanDropdownOpen) {
+    if (isDoubanDropdownOpen)
+    {
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isDoubanDropdownOpen]);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (isDoubanImageProxyDropdownOpen) {
+  useEffect(() =>
+  {
+    const handleClickOutside = (event: MouseEvent) =>
+    {
+      if (isDoubanImageProxyDropdownOpen)
+      {
         const target = event.target as Element;
-        if (!target.closest('[data-dropdown="douban-image-proxy"]')) {
+        if (!target.closest('[data-dropdown="douban-image-proxy"]'))
+        {
           setIsDoubanImageProxyDropdownOpen(false);
         }
       }
     };
 
-    if (isDoubanImageProxyDropdownOpen) {
+    if (isDoubanImageProxyDropdownOpen)
+    {
       document.addEventListener('mousedown', handleClickOutside);
       return () =>
         document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [isDoubanImageProxyDropdownOpen]);
 
-  const handleMenuClick = () => {
+  const handleMenuClick = () =>
+  {
     setIsOpen(!isOpen);
   };
 
-  const handleCloseMenu = () => {
+  const handleCloseMenu = () =>
+  {
     setIsOpen(false);
   };
 
-  const handleLogout = async () => {
-    try {
+  const handleLogout = async () =>
+  {
+    try
+    {
       await fetch('/api/logout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-    } catch (error) {
+    } catch (error)
+    {
       console.error('注销请求失败:', error);
     }
     window.location.href = '/';
   };
 
-  const handleAdminPanel = () => {
+  const handleAdminPanel = () =>
+  {
     router.push('/admin');
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = () =>
+  {
     setIsOpen(false);
     setIsChangePasswordOpen(true);
     setNewPassword('');
@@ -242,30 +290,35 @@ export const UserMenu: React.FC = () => {
     setPasswordError('');
   };
 
-  const handleCloseChangePassword = () => {
+  const handleCloseChangePassword = () =>
+  {
     setIsChangePasswordOpen(false);
     setNewPassword('');
     setConfirmPassword('');
     setPasswordError('');
   };
 
-  const handleSubmitChangePassword = async () => {
+  const handleSubmitChangePassword = async () =>
+  {
     setPasswordError('');
 
     // 验证密码
-    if (!newPassword) {
+    if (!newPassword)
+    {
       setPasswordError('新密码不得为空');
       return;
     }
 
-    if (newPassword !== confirmPassword) {
+    if (newPassword !== confirmPassword)
+    {
       setPasswordError('两次输入的密码不一致');
       return;
     }
 
     setPasswordLoading(true);
 
-    try {
+    try
+    {
       const response = await fetch('/api/change-password', {
         method: 'POST',
         headers: {
@@ -278,7 +331,8 @@ export const UserMenu: React.FC = () => {
 
       const data = await response.json();
 
-      if (!response.ok) {
+      if (!response.ok)
+      {
         setPasswordError(data.error || '修改密码失败');
         return;
       }
@@ -286,68 +340,95 @@ export const UserMenu: React.FC = () => {
       // 修改成功，关闭弹窗并登出
       setIsChangePasswordOpen(false);
       await handleLogout();
-    } catch (error) {
+    } catch (error)
+    {
       setPasswordError('网络错误，请稍后重试');
-    } finally {
+    } finally
+    {
       setPasswordLoading(false);
     }
   };
 
-  const handleSettings = () => {
+  const handleSettings = () =>
+  {
     setIsOpen(false);
     setIsSettingsOpen(true);
   };
 
-  const handleCloseSettings = () => {
+  const handleCloseSettings = () =>
+  {
     setIsSettingsOpen(false);
   };
 
   // 设置相关的处理函数
-  const handleAggregateToggle = (value: boolean) => {
+  const handleAggregateToggle = (value: boolean) =>
+  {
     setDefaultAggregateSearch(value);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('defaultAggregateSearch', JSON.stringify(value));
     }
   };
 
-  const handleDoubanProxyUrlChange = (value: string) => {
+  const handleDefaultStreamToggle = (value: boolean) =>
+  {
+    setDefaultStreamSearch(value);
+    if (typeof window !== 'undefined')
+    {
+      localStorage.setItem('defaultStreamSearch', JSON.stringify(value));
+    }
+  };
+
+  const handleDoubanProxyUrlChange = (value: string) =>
+  {
     setDoubanProxyUrl(value);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('doubanProxyUrl', value);
     }
   };
 
-  const handleOptimizationToggle = (value: boolean) => {
+  const handleOptimizationToggle = (value: boolean) =>
+  {
     setEnableOptimization(value);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('enableOptimization', JSON.stringify(value));
     }
   };
 
-  const handleDoubanDataSourceChange = (value: string) => {
+  const handleDoubanDataSourceChange = (value: string) =>
+  {
     setDoubanDataSource(value);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('doubanDataSource', value);
     }
   };
 
-  const handleDoubanImageProxyTypeChange = (value: string) => {
+  const handleDoubanImageProxyTypeChange = (value: string) =>
+  {
     setDoubanImageProxyType(value);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('doubanImageProxyType', value);
     }
   };
 
-  const handleDoubanImageProxyUrlChange = (value: string) => {
+  const handleDoubanImageProxyUrlChange = (value: string) =>
+  {
     setDoubanImageProxyUrl(value);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('doubanImageProxyUrl', value);
     }
   };
 
   // 获取感谢信息
-  const getThanksInfo = (dataSource: string) => {
-    switch (dataSource) {
+  const getThanksInfo = (dataSource: string) =>
+  {
+    switch (dataSource)
+    {
       case 'cors-proxy-zwei':
         return {
           text: 'Thanks to @Zwei',
@@ -364,7 +445,8 @@ export const UserMenu: React.FC = () => {
     }
   };
 
-  const handleResetSettings = () => {
+  const handleResetSettings = () =>
+  {
     const defaultDoubanProxyType =
       (window as any).RUNTIME_CONFIG?.DOUBAN_PROXY_TYPE || 'direct';
     const defaultDoubanProxy =
@@ -375,14 +457,17 @@ export const UserMenu: React.FC = () => {
       (window as any).RUNTIME_CONFIG?.DOUBAN_IMAGE_PROXY || '';
 
     setDefaultAggregateSearch(true);
+    setDefaultStreamSearch(true);
     setEnableOptimization(true);
     setDoubanProxyUrl(defaultDoubanProxy);
     setDoubanDataSource(defaultDoubanProxyType);
     setDoubanImageProxyType(defaultDoubanImageProxyType);
     setDoubanImageProxyUrl(defaultDoubanImageProxyUrl);
 
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined')
+    {
       localStorage.setItem('defaultAggregateSearch', JSON.stringify(true));
+      localStorage.setItem('defaultStreamSearch', JSON.stringify(true));
       localStorage.setItem('enableOptimization', JSON.stringify(true));
       localStorage.setItem('doubanProxyUrl', defaultDoubanProxy);
       localStorage.setItem('doubanDataSource', defaultDoubanProxyType);
@@ -400,8 +485,10 @@ export const UserMenu: React.FC = () => {
     authInfo?.role !== 'owner' && storageType !== 'localstorage';
 
   // 角色中文映射
-  const getRoleText = (role?: string) => {
-    switch (role) {
+  const getRoleText = (role?: string) =>
+  {
+    switch (role)
+    {
       case 'owner':
         return '站长';
       case 'admin':
@@ -432,13 +519,12 @@ export const UserMenu: React.FC = () => {
                 当前用户
               </span>
               <span
-                className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
-                  (authInfo?.role || 'user') === 'owner'
+                className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${(authInfo?.role || 'user') === 'owner'
                     ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
                     : (authInfo?.role || 'user') === 'admin'
-                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                }`}
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                      : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                  }`}
               >
                 {getRoleText(authInfo?.role || 'user')}
               </span>
@@ -505,7 +591,8 @@ export const UserMenu: React.FC = () => {
 
           {/* 版本信息 */}
           <button
-            onClick={() => {
+            onClick={() =>
+            {
               setIsVersionPanelOpen(true);
               handleCloseMenu();
             }}
@@ -517,13 +604,12 @@ export const UserMenu: React.FC = () => {
                 updateStatus &&
                 updateStatus !== UpdateStatus.FETCH_FAILED && (
                   <div
-                    className={`w-2 h-2 rounded-full -translate-y-2 ${
-                      updateStatus === UpdateStatus.HAS_UPDATE
+                    className={`w-2 h-2 rounded-full -translate-y-2 ${updateStatus === UpdateStatus.HAS_UPDATE
                         ? 'bg-yellow-500'
                         : updateStatus === UpdateStatus.NO_UPDATE
-                        ? 'bg-green-400'
-                        : ''
-                    }`}
+                          ? 'bg-green-400'
+                          : ''
+                      }`}
                   ></div>
                 )}
             </div>
@@ -596,9 +682,8 @@ export const UserMenu: React.FC = () => {
               {/* 下拉箭头 */}
               <div className='absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none'>
                 <ChevronDown
-                  className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
-                    isDoubanDropdownOpen ? 'rotate-180' : ''
-                  }`}
+                  className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isDoubanDropdownOpen ? 'rotate-180' : ''
+                    }`}
                 />
               </div>
 
@@ -609,15 +694,15 @@ export const UserMenu: React.FC = () => {
                     <button
                       key={option.value}
                       type='button'
-                      onClick={() => {
+                      onClick={() =>
+                      {
                         handleDoubanDataSourceChange(option.value);
                         setIsDoubanDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                        doubanDataSource === option.value
+                      className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${doubanDataSource === option.value
                           ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
                           : 'text-gray-900 dark:text-gray-100'
-                      }`}
+                        }`}
                     >
                       <span className='truncate'>{option.label}</span>
                       {doubanDataSource === option.value && (
@@ -703,9 +788,8 @@ export const UserMenu: React.FC = () => {
               {/* 下拉箭头 */}
               <div className='absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none'>
                 <ChevronDown
-                  className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${
-                    isDoubanDropdownOpen ? 'rotate-180' : ''
-                  }`}
+                  className={`w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform duration-200 ${isDoubanDropdownOpen ? 'rotate-180' : ''
+                    }`}
                 />
               </div>
 
@@ -716,15 +800,15 @@ export const UserMenu: React.FC = () => {
                     <button
                       key={option.value}
                       type='button'
-                      onClick={() => {
+                      onClick={() =>
+                      {
                         handleDoubanImageProxyTypeChange(option.value);
                         setIsDoubanImageProxyDropdownOpen(false);
                       }}
-                      className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                        doubanImageProxyType === option.value
+                      className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${doubanImageProxyType === option.value
                           ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
                           : 'text-gray-900 dark:text-gray-100'
-                      }`}
+                        }`}
                     >
                       <span className='truncate'>{option.label}</span>
                       {doubanImageProxyType === option.value && (
@@ -801,6 +885,30 @@ export const UserMenu: React.FC = () => {
                   className='sr-only peer'
                   checked={defaultAggregateSearch}
                   onChange={(e) => handleAggregateToggle(e.target.checked)}
+                />
+                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
+                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+              </div>
+            </label>
+          </div>
+
+          {/* 默认搜索模式（流式） */}
+          <div className='flex items-center justify-between'>
+            <div>
+              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                默认搜索模式（流式）
+              </h4>
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                关闭后默认使用一次性返回，空结果将不缓存
+              </p>
+            </div>
+            <label className='flex items-center cursor-pointer'>
+              <div className='relative'>
+                <input
+                  type='checkbox'
+                  className='sr-only peer'
+                  checked={defaultStreamSearch}
+                  onChange={(e) => handleDefaultStreamToggle(e.target.checked)}
                 />
                 <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
                 <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>

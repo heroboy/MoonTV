@@ -1,4 +1,6 @@
-export interface AdminConfig {
+export interface AdminConfig
+{
+  ConfigFile: string;
   SiteConfig: {
     SiteName: string;
     Announcement: string;
@@ -35,7 +37,8 @@ export interface AdminConfig {
   }[];
 }
 
-export interface AdminConfigResult {
+export interface AdminConfigResult
+{
   Role: 'owner' | 'admin';
   Config: AdminConfig;
 }

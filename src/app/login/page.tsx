@@ -12,18 +12,24 @@ import { useSite } from '@/components/SiteProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
 // 版本显示组件
-function VersionDisplay() {
+function VersionDisplay()
+{
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [isChecking, setIsChecking] = useState(true);
 
-  useEffect(() => {
-    const checkUpdate = async () => {
-      try {
+  useEffect(() =>
+  {
+    const checkUpdate = async () =>
+    {
+      try
+      {
         const status = await checkForUpdates();
         setUpdateStatus(status);
-      } catch (_) {
+      } catch (_)
+      {
         // do nothing
-      } finally {
+      } finally
+      {
         setIsChecking(false);
       }
     };
@@ -34,20 +40,19 @@ function VersionDisplay() {
   return (
     <button
       onClick={() =>
-        window.open('https://github.com/LunaTechLab/MoonTV', '_blank')
+        window.open('https://github.com/Stardm0/MoonTV', '_blank')
       }
       className='absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 transition-colors cursor-pointer'
     >
       <span className='font-mono'>v{CURRENT_VERSION}</span>
       {!isChecking && updateStatus !== UpdateStatus.FETCH_FAILED && (
         <div
-          className={`flex items-center gap-1.5 ${
-            updateStatus === UpdateStatus.HAS_UPDATE
-              ? 'text-yellow-600 dark:text-yellow-400'
-              : updateStatus === UpdateStatus.NO_UPDATE
+          className={`flex items-center gap-1.5 ${updateStatus === UpdateStatus.HAS_UPDATE
+            ? 'text-yellow-600 dark:text-yellow-400'
+            : updateStatus === UpdateStatus.NO_UPDATE
               ? 'text-green-600 dark:text-green-400'
               : ''
-          }`}
+            }`}
         >
           {updateStatus === UpdateStatus.HAS_UPDATE && (
             <>
@@ -67,7 +72,8 @@ function VersionDisplay() {
   );
 }
 
-function LoginPageClient() {
+function LoginPageClient()
+{
   const router = useRouter();
   const searchParams = useSearchParams();
   const [password, setPassword] = useState('');
@@ -79,8 +85,10 @@ function LoginPageClient() {
   const { siteName } = useSite();
 
   // 在客户端挂载后设置配置
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
+  useEffect(() =>
+  {
+    if (typeof window !== 'undefined')
+    {
       const storageType = (window as any).RUNTIME_CONFIG?.STORAGE_TYPE;
       setShouldAskUsername(storageType && storageType !== 'localstorage');
       setEnableRegister(
@@ -89,13 +97,15 @@ function LoginPageClient() {
     }
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) =>
+  {
     e.preventDefault();
     setError(null);
 
     if (!password || (shouldAskUsername && !username)) return;
 
-    try {
+    try
+    {
       setLoading(true);
       const res = await fetch('/api/login', {
         method: 'POST',
@@ -106,28 +116,35 @@ function LoginPageClient() {
         }),
       });
 
-      if (res.ok) {
+      if (res.ok)
+      {
         const redirect = searchParams.get('redirect') || '/';
         router.replace(redirect);
-      } else if (res.status === 401) {
+      } else if (res.status === 401)
+      {
         setError('密码错误');
-      } else {
+      } else
+      {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? '服务器错误');
       }
-    } catch (error) {
+    } catch (error)
+    {
       setError('网络错误，请稍后重试');
-    } finally {
+    } finally
+    {
       setLoading(false);
     }
   };
 
   // 处理注册逻辑
-  const handleRegister = async () => {
+  const handleRegister = async () =>
+  {
     setError(null);
     if (!password || !username) return;
 
-    try {
+    try
+    {
       setLoading(true);
       const res = await fetch('/api/register', {
         method: 'POST',
@@ -135,16 +152,20 @@ function LoginPageClient() {
         body: JSON.stringify({ username, password }),
       });
 
-      if (res.ok) {
+      if (res.ok)
+      {
         const redirect = searchParams.get('redirect') || '/';
         router.replace(redirect);
-      } else {
+      } else
+      {
         const data = await res.json().catch(() => ({}));
         setError(data.error ?? '服务器错误');
       }
-    } catch (error) {
+    } catch (error)
+    {
       setError('网络错误，请稍后重试');
-    } finally {
+    } finally
+    {
       setLoading(false);
     }
   };
@@ -236,7 +257,8 @@ function LoginPageClient() {
   );
 }
 
-export default function LoginPage() {
+export default function LoginPage()
+{
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <LoginPageClient />

@@ -1,4 +1,4 @@
-# MoonTV
+# MoonTV(Branch)
 
 <div align="center">
   <img src="public/logo.png" alt="LibreTV Logo" width="120">
@@ -20,13 +20,13 @@
 
 ## ✨ 功能特性
 
-- 🔍 **多源聚合搜索**：内置数十个免费资源站点，一次搜索立刻返回全源结果。
+- 🔍 **多源聚合搜索**：增加流式搜索快速返回结果。
 - 📄 **丰富详情页**：支持剧集列表、演员、年份、简介等完整信息展示。
 - ▶️ **流畅在线播放**：集成 HLS.js & ArtPlayer。
-- ❤️ **收藏 + 继续观看**：支持 Redis/D1/Upstash 存储，多端同步进度。
+- ❤️ **收藏 + 继续观看**：支持 Redis/Upstash 存储，多端同步进度。
 - 📱 **PWA**：离线缓存、安装到桌面/主屏，移动端原生体验。
 - 🌗 **响应式布局**：桌面侧边栏 + 移动底部导航，自适应各种屏幕尺寸。
-- 🚀 **极简部署**：一条 Docker 命令即可将完整服务跑起来，或免费部署到 Vercel、Netlify 和 ~~Cloudflare~~。
+- 🚀 **极简部署**：一条 Docker 命令即可将完整服务跑起来，或免费部署到 Vercel、Netlify。
 - 👿 **智能去广告**：自动跳过视频中的切片广告（实验性）
 
 <details>
@@ -38,17 +38,29 @@
 
 ## 🗺 目录
 
-- [技术栈](#技术栈)
-- [部署](#部署)
-- [Docker Compose 最佳实践](#Docker-Compose-最佳实践)
-- [环境变量](#环境变量)
-- [配置说明](#配置说明)
-- [管理员配置](#管理员配置)
-- [AndroidTV 使用](#AndroidTV-使用)
-- [Roadmap](#roadmap)
-- [安全与隐私提醒](#安全与隐私提醒)
-- [License](#license)
-- [致谢](#致谢)
+- [MoonTV(Branch)](#moontvbranch)
+  - [✨ 功能特性](#-功能特性)
+  - [🗺 目录](#-目录)
+  - [技术栈](#技术栈)
+  - [部署](#部署)
+    - [Vercel 部署](#vercel-部署)
+      - [普通部署（localstorage）](#普通部署localstorage)
+      - [Upstash Redis 支持](#upstash-redis-支持)
+    - [Netlify 部署](#netlify-部署)
+      - [普通部署（localstorage）](#普通部署localstorage-1)
+      - [Upstash Redis 支持](#upstash-redis-支持-1)
+    - [Docker 部署](#docker-部署)
+  - [环境变量](#环境变量)
+  - [配置说明](#配置说明)
+  - [管理员配置](#管理员配置)
+  - [AndroidTV 使用](#androidtv-使用)
+  - [Roadmap](#roadmap)
+  - [安全与隐私提醒](#安全与隐私提醒)
+    - [请设置密码保护并关闭公网注册](#请设置密码保护并关闭公网注册)
+    - [部署要求](#部署要求)
+    - [重要声明](#重要声明)
+  - [License](#license)
+  - [致谢](#致谢)
 
 ## 技术栈
 
@@ -59,26 +71,22 @@
 | 语言      | TypeScript 4                                                                                          |
 | 播放器    | [ArtPlayer](https://github.com/zhw2590582/ArtPlayer) · [HLS.js](https://github.com/video-dev/hls.js/) |
 | 代码质量  | ESLint · Prettier · Jest                                                                              |
-| 部署      | Docker · Vercel · CloudFlare pages                                                                    |
+| 部署      | Docker · Vercel ·  pages                                                                    |
 
 ## 部署
 
-本项目**支持 Vercel、Docker、Netlify 和 ~~Cloudflare~~** 部署。
+本项目**支持 Vercel、Docker、Netlify** 部署。
 
 存储支持矩阵
 
-|                   | Docker | Vercel | Netlify | ~~Cloudflare~~ |
-| :---------------: | :----: | :----: | :-----: | :------------: |
-|   localstorage    |   ✅   |   ✅   |   ✅    |       ✅       |
-|    原生 redis     |   ✅   |        |         |                |
-| ~~Cloudflare D1~~ |        |        |         |       ✅       |
-|   Upstash Redis   |   ☑️   |   ✅   |   ✅    |       ☑️       |
+|                   | Docker | Vercel | Netlify |
+| :---------------: | :----: | :----: | :-----: |
+|    原生 redis     |   ✅   |        |         |
+|   Upstash Redis   |   ☑️   |   ✅   |   ✅    |
 
 ✅：经测试支持
 
 ☑️：理论上支持，未测试
-
-除 localstorage 方式外，其他方式都支持多账户、记录同步和管理页面
 
 ### Vercel 部署
 
@@ -110,8 +118,7 @@
 2. 登陆 [Netlify](https://www.netlify.com/)，点击 **Add New project → Importing an existing project**，授权 Github，选择 Fork 后的仓库。
 3. 设置 PASSWORD 环境变量。
 4. 保持默认设置完成首次部署。
-5. 如需自定义 `config.json`，请直接修改 Fork 后仓库中该文件。
-6. 每次 Push 到 `main` 分支将自动触发重新构建。
+5. 每次 Push 到 `main` 分支将自动触发重新构建。
 
 部署完成后即可通过分配的域名访问，也可以绑定自定义域名。
 
@@ -124,117 +131,9 @@
 4. 设置环境变量 NEXT_PUBLIC_STORAGE_TYPE，值为 **upstash**；设置 USERNAME 和 PASSWORD 作为站长账号
 5. 重试部署
 
-### Cloudflare 部署（**不支持，详情请看置顶 issue**）
-
-~~**Cloudflare Pages 的环境变量尽量设置为密钥而非文本**~~
-
-#### ~~普通部署（localstorage）~~
-
-~~1. **Fork** 本仓库到你的 GitHub 账户。~~
-~~2. 登陆 [Cloudflare](https://cloudflare.com)，点击 **计算（Workers）-> Workers 和 Pages**，点击创建~~
-~~3. 选择 Pages，导入现有的 Git 存储库，选择 Fork 后的仓库~~
-~~4. 构建命令填写 **pnpm install --frozen-lockfile && pnpm run pages:build**，预设框架为无，**构建输出目录**为 `.vercel/output/static`~~
-~~5. 保持默认设置完成首次部署。进入设置，将兼容性标志设置为 `nodejs_compat`，无需选择，直接粘贴~~
-~~6. 首次部署完成后进入设置，新增 PASSWORD 密钥（变量和机密下），而后重试部署。~~
-~~7. 如需自定义 `config.json`，请直接修改 Fork 后仓库中该文件。~~
-~~8. 每次 Push 到 `main` 分支将自动触发重新构建。~~
-
-#### ~~D1 支持~~
-
-~~0. 完成普通部署并成功访问~~
-~~1. 点击 **存储和数据库 -> D1 SQL 数据库**，创建一个新的数据库，名称随意~~
-~~2. 进入刚创建的数据库，点击左上角的 Explore Data，将[D1 初始化](D1初始化.md) 中的内容粘贴到 Query 窗口后点击 **Run All**，等待运行完成~~
-~~3. 返回你的 pages 项目，进入 **设置 -> 绑定**，添加绑定 D1 数据库，选择你刚创建的数据库，变量名称填 **DB**~~
-~~4. 设置环境变量 NEXT_PUBLIC_STORAGE_TYPE，值为 **d1**；设置 USERNAME 和 PASSWORD 作为站长账号~~
-~~5. 重试部署~~
-
 ### Docker 部署
 
-#### 1. 直接运行（最简单，localstorage）
-
-```bash
-# 拉取预构建镜像
-# 推荐使用具体版本号标签，确保稳定性
-docker pull ghcr.io/lunatechlab/moontv:1.0.4
-# 或拉取最新版本
-docker pull ghcr.io/lunatechlab/moontv:latest
-
-# 运行容器
-# -d: 后台运行  -p: 映射端口 3000 -> 3000
-docker run -d --name moontv -p 3000:3000 --env PASSWORD=your_password ghcr.io/lunatechlab/moontv:latest
-```
-
-#### 可用标签
-
-- `ghcr.io/lunatechlab/moontv:1.0.4` - 具体版本号，推荐用于生产环境
-- `ghcr.io/lunatechlab/moontv:latest` - 最新版本，可能包含最新功能但也可能有未测试的变化
-- `ghcr.io/lunatechlab/moontv:pr-{number}` - PR 构建版本，用于测试新功能
-
-访问 `http://服务器 IP:3000` 即可。（需自行到服务器控制台放通 `3000` 端口）
-
-## Docker Compose 最佳实践
-
-若你使用 docker compose 部署，以下是一些 compose 示例
-
-### local storage 版本
-
-```yaml
-services:
-  moontv-core:
-    image: ghcr.io/lunatechlab/moontv:latest
-    container_name: moontv-core
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-    environment:
-      - PASSWORD=your_password
-    # 如需自定义配置，可挂载文件
-    # volumes:
-    #   - ./config.json:/app/config.json:ro
-```
-
-### Redis 版本（推荐，多账户数据隔离，跨设备同步）
-
-```yaml
-services:
-  moontv-core:
-    image: ghcr.io/lunatechlab/moontv:latest
-    container_name: moontv-core
-    restart: unless-stopped
-    ports:
-      - '3000:3000'
-    environment:
-      - USERNAME=admin
-      - PASSWORD=admin_password
-      - NEXT_PUBLIC_STORAGE_TYPE=redis
-      - REDIS_URL=redis://moontv-redis:6379
-      - NEXT_PUBLIC_ENABLE_REGISTER=true
-    networks:
-      - moontv-network
-    depends_on:
-      - moontv-redis
-    # 如需自定义配置，可挂载文件
-    # volumes:
-    #   - ./config.json:/app/config.json:ro
-  moontv-redis:
-    image: redis:alpine
-    container_name: moontv-redis
-    restart: unless-stopped
-    networks:
-      - moontv-network
-    # 如需持久化
-    # volumes:
-    #   - ./data:/data
-networks:
-  moontv-network:
-    driver: bridge
-```
-
-## 自动同步最近更改
-
-建议在 fork 的仓库中启用本仓库自带的 GitHub Actions 自动同步功能（见 `.github/workflows/sync.yml`）。
-
-如需手动同步主仓库更新，也可以使用 GitHub 官方的 [Sync fork](https://docs.github.com/cn/github/collaborating-with-issues-and-pull-requests/syncing-a-fork) 功能。
+https://github.com/MoonTechLab/LunaTV
 
 ## 环境变量
 
@@ -250,11 +149,10 @@ networks:
 | UPSTASH_TOKEN                       | upstash redis 连接 token                     | 连接 token                       | 空                                                                                                                         |
 | NEXT_PUBLIC_ENABLE_REGISTER         | 是否开放注册，仅在非 localstorage 部署时生效 | true / false                     | false                                                                                                                      |
 | NEXT_PUBLIC_SEARCH_MAX_PAGE         | 搜索接口可拉取的最大页数                     | 1-50                             | 5                                                                                                                          |
-| NEXT_PUBLIC_DOUBAN_PROXY_TYPE       | 豆瓣数据源请求方式                           | 见下方                           | direct                                                                                                                     |
+| NEXT_PUBLIC_DOUBAN_PROXY_TYPE       | 豆瓣数据源请求方式                           | 见下方                           |                                                                                               direct                      |
 | NEXT_PUBLIC_DOUBAN_PROXY            | 自定义豆瓣数据代理 URL                       | url prefix                       | (空)                                                                                                                       |
 | NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE | 豆瓣图片代理类型                             | 见下方                           | direct                                                                                                                     |
 | NEXT_PUBLIC_DOUBAN_IMAGE_PROXY      | 自定义豆瓣图片代理 URL                       | url prefix                       | (空)                                                                                                                       |
-| direct                              |
 | NEXT_PUBLIC_DISABLE_YELLOW_FILTER   | 关闭色情内容过滤                             | true/false                       | false                                                                                                                      |
 
 NEXT_PUBLIC_DOUBAN_PROXY_TYPE 选项解释：
@@ -263,7 +161,7 @@ NEXT_PUBLIC_DOUBAN_PROXY_TYPE 选项解释：
 - cors-proxy-zwei: 浏览器向 cors proxy 请求豆瓣数据，该 cors proxy 由 [Zwei](https://github.com/bestzwei) 搭建
 - cmliussss-cdn-tencent: 浏览器向豆瓣 CDN 请求数据，该 CDN 由 [CMLiussss](https://github.com/cmliu) 搭建，并由腾讯云 cdn 提供加速
 - cmliussss-cdn-ali: 浏览器向豆瓣 CDN 请求数据，该 CDN 由 [CMLiussss](https://github.com/cmliu) 搭建，并由阿里云 cdn 提供加速
-- cors-anywhere: 浏览器向 cors proxy 请求豆瓣数据，该 cors proxy 为公共服务 [cors-anywhere](https://cors-anywhere.com)，限制每分钟 20 次请求
+
 - custom: 用户自定义 proxy，由 NEXT_PUBLIC_DOUBAN_PROXY 定义
 
 NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE 选项解释：
@@ -277,7 +175,8 @@ NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE 选项解释：
 
 ## 配置说明
 
-所有可自定义项集中在根目录的 `config.json` 中：
+如果为localstorage模式所有可自定义项集中在根目录的 `config.json` 中(localstorage模式)
+非localstorage可在部署好的网页中直接配置
 
 ```json
 {
@@ -383,6 +282,6 @@ MoonTV 支持标准的苹果 CMS V10 API 格式。
 
 ---
 
-## Star 趋势
+<!-- ## Star 趋势
 
-[![Stargazers over time](https://starchart.cc/LunaTechLab/MoonTV.svg?variant=adaptive)](https://starchart.cc/LunaTechLab/MoonTV)
+[![Stargazers over time](https://starchart.cc/LunaTechLab/MoonTV.svg?variant=adaptive)](https://starchart.cc/LunaTechLab/MoonTV) -->
