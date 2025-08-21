@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev"         : "npm run gen:runtime && npm run gen:manifest && next dev -H 0.0.0.0",
-    "build"       : "npm gen:runtime && npm gen:manifest && next build",
+    "build"       : "npm run gen:runtime && npm run gen:manifest && next build",
     "start"       : "next start",
     "lint"        : "next lint",
     "lint:fix"    : "eslint src --fix && npm format",
