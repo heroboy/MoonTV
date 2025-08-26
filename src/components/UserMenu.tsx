@@ -3,17 +3,17 @@
 'use client';
 
 import
-  {
-    Check,
-    ChevronDown,
-    ExternalLink,
-    KeyRound,
-    LogOut,
-    Settings,
-    Shield,
-    User,
-    X,
-  } from 'lucide-react';
+{
+  Check,
+  ChevronDown,
+  ExternalLink,
+  KeyRound,
+  LogOut,
+  Settings,
+  Shield,
+  User,
+  X,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -44,7 +44,7 @@ export const UserMenu: React.FC = () =>
   const [defaultAggregateSearch, setDefaultAggregateSearch] = useState(true);
   const [defaultStreamSearch, setDefaultStreamSearch] = useState(true);
   const [doubanProxyUrl, setDoubanProxyUrl] = useState('');
-  const [enableOptimization, setEnableOptimization] = useState(true);
+
   const [doubanDataSource, setDoubanDataSource] = useState('direct');
   const [doubanImageProxyType, setDoubanImageProxyType] = useState('direct');
   const [doubanImageProxyUrl, setDoubanImageProxyUrl] = useState('');
@@ -176,12 +176,6 @@ export const UserMenu: React.FC = () =>
         setDoubanImageProxyUrl(defaultDoubanImageProxyUrl);
       }
 
-      const savedEnableOptimization =
-        localStorage.getItem('enableOptimization');
-      if (savedEnableOptimization !== null)
-      {
-        setEnableOptimization(JSON.parse(savedEnableOptimization));
-      }
     }
   }, []);
 
@@ -388,14 +382,6 @@ export const UserMenu: React.FC = () =>
     }
   };
 
-  const handleOptimizationToggle = (value: boolean) =>
-  {
-    setEnableOptimization(value);
-    if (typeof window !== 'undefined')
-    {
-      localStorage.setItem('enableOptimization', JSON.stringify(value));
-    }
-  };
 
   const handleDoubanDataSourceChange = (value: string) =>
   {
@@ -458,7 +444,7 @@ export const UserMenu: React.FC = () =>
 
     setDefaultAggregateSearch(true);
     setDefaultStreamSearch(true);
-    setEnableOptimization(true);
+
     setDoubanProxyUrl(defaultDoubanProxy);
     setDoubanDataSource(defaultDoubanProxyType);
     setDoubanImageProxyType(defaultDoubanImageProxyType);
@@ -468,7 +454,7 @@ export const UserMenu: React.FC = () =>
     {
       localStorage.setItem('defaultAggregateSearch', JSON.stringify(true));
       localStorage.setItem('defaultStreamSearch', JSON.stringify(true));
-      localStorage.setItem('enableOptimization', JSON.stringify(true));
+
       localStorage.setItem('doubanProxyUrl', defaultDoubanProxy);
       localStorage.setItem('doubanDataSource', defaultDoubanProxyType);
       localStorage.setItem('doubanImageProxyType', defaultDoubanImageProxyType);
@@ -520,10 +506,10 @@ export const UserMenu: React.FC = () =>
               </span>
               <span
                 className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${(authInfo?.role || 'user') === 'owner'
-                    ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
-                    : (authInfo?.role || 'user') === 'admin'
-                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                  : (authInfo?.role || 'user') === 'admin'
+                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
                   }`}
               >
                 {getRoleText(authInfo?.role || 'user')}
@@ -605,10 +591,10 @@ export const UserMenu: React.FC = () =>
                 updateStatus !== UpdateStatus.FETCH_FAILED && (
                   <div
                     className={`w-2 h-2 rounded-full -translate-y-2 ${updateStatus === UpdateStatus.HAS_UPDATE
-                        ? 'bg-yellow-500'
-                        : updateStatus === UpdateStatus.NO_UPDATE
-                          ? 'bg-green-400'
-                          : ''
+                      ? 'bg-yellow-500'
+                      : updateStatus === UpdateStatus.NO_UPDATE
+                        ? 'bg-green-400'
+                        : ''
                       }`}
                   ></div>
                 )}
@@ -700,8 +686,8 @@ export const UserMenu: React.FC = () =>
                         setIsDoubanDropdownOpen(false);
                       }}
                       className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${doubanDataSource === option.value
-                          ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                          : 'text-gray-900 dark:text-gray-100'
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                        : 'text-gray-900 dark:text-gray-100'
                         }`}
                     >
                       <span className='truncate'>{option.label}</span>
@@ -806,8 +792,8 @@ export const UserMenu: React.FC = () =>
                         setIsDoubanImageProxyDropdownOpen(false);
                       }}
                       className={`w-full px-3 py-2.5 text-left text-sm transition-colors duration-150 flex items-center justify-between hover:bg-gray-100 dark:hover:bg-gray-700 ${doubanImageProxyType === option.value
-                          ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                          : 'text-gray-900 dark:text-gray-100'
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                        : 'text-gray-900 dark:text-gray-100'
                         }`}
                     >
                       <span className='truncate'>{option.label}</span>
@@ -892,11 +878,11 @@ export const UserMenu: React.FC = () =>
             </label>
           </div>
 
-          {/* 默认搜索模式（流式） */}
+          {/* 默认流式搜索模式 */}
           <div className='flex items-center justify-between'>
             <div>
               <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                默认搜索模式（流式）
+                默认流式搜索模式
               </h4>
               <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
                 关闭后默认使用一次性返回，空结果将不缓存
@@ -916,29 +902,7 @@ export const UserMenu: React.FC = () =>
             </label>
           </div>
 
-          {/* 优选和测速 */}
-          <div className='flex items-center justify-between'>
-            <div>
-              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                启用优选和测速
-              </h4>
-              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
-                如出现播放器劫持问题可关闭
-              </p>
-            </div>
-            <label className='flex items-center cursor-pointer'>
-              <div className='relative'>
-                <input
-                  type='checkbox'
-                  className='sr-only peer'
-                  checked={enableOptimization}
-                  onChange={(e) => handleOptimizationToggle(e.target.checked)}
-                />
-                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
-                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
-              </div>
-            </label>
-          </div>
+
         </div>
 
         {/* 底部说明 */}

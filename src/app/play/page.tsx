@@ -9,19 +9,19 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
 
 import
-  {
-    deleteFavorite,
-    deletePlayRecord,
-    deleteSkipConfig,
-    generateStorageKey,
-    getAllPlayRecords,
-    getSkipConfig,
-    isFavorited,
-    saveFavorite,
-    savePlayRecord,
-    saveSkipConfig,
-    subscribeToDataUpdates,
-  } from '@/lib/db.client';
+{
+  deleteFavorite,
+  deletePlayRecord,
+  deleteSkipConfig,
+  generateStorageKey,
+  getAllPlayRecords,
+  getSkipConfig,
+  isFavorited,
+  saveFavorite,
+  savePlayRecord,
+  saveSkipConfig,
+  subscribeToDataUpdates,
+} from '@/lib/db.client';
 import { SearchResult } from '@/lib/types';
 import { getVideoResolutionFromM3u8, processImageUrl } from '@/lib/utils';
 
@@ -177,26 +177,6 @@ function PlayPageClient()
     null
   );
 
-  // 优选和测速开关
-  const [optimizationEnabled] = useState<boolean>(() =>
-  {
-    if (typeof window !== 'undefined')
-    {
-      const saved = localStorage.getItem('enableOptimization');
-      if (saved !== null)
-      {
-        try
-        {
-          return JSON.parse(saved);
-        } catch
-        {
-          /* ignore */
-        }
-      }
-    }
-    return true;
-  });
-
   // 保存优选时的测速结果，避免EpisodeSelector重复测速
   const [precomputedVideoInfo, setPrecomputedVideoInfo] = useState<
     Map<string, { quality: string; loadSpeed: string; pingTime: number; }>
@@ -209,7 +189,7 @@ function PlayPageClient()
   // 换源加载状态
   const [isVideoLoading, setIsVideoLoading] = useState(true);
   const [videoLoadingStage, setVideoLoadingStage] = useState<
-    'initing' | 'sourceChanging'
+    'initing' | 'sourceChanging' | 'optimizing'
   >('initing');
 
   // 播放进度保存相关
@@ -811,18 +791,10 @@ function PlayPageClient()
         if (cached)
         {
           parsed = JSON.parse(cached) as CachedResult;
-          // 判断 timestamp 是否过期，同时检查 results 中的 id 是否一致
-          const idsMatch = parsed.results.every((item, index) => item.title === videoTitle);
-          if (idsMatch)
-          {
-            aggregatedResults = [...parsed.results];
-            setAvailableSources(aggregatedResults);
-            setSourceSearchLoading(false);
-            onResult?.(parsed.results); // 先回调缓存
-          } else
-          {
-            parsed.reSearch = true; // 用对象标记
-          }
+          aggregatedResults = [...parsed.results];
+          setAvailableSources(aggregatedResults);
+          setSourceSearchLoading(false);
+          onResult?.(parsed.results);
         }
 
         // 2. 发起流式搜索请求
@@ -974,7 +946,7 @@ function PlayPageClient()
 
       startTimeout();
 
-      await fetchSourcesData(searchTitle || videoTitle, (newResults) =>
+      await fetchSourcesData(videoTitle, (newResults) =>
       {
         if (!started && newResults.length > 0)
         {
@@ -1183,6 +1155,17 @@ function PlayPageClient()
       newUrl.searchParams.set('year', newDetail.year);
       window.history.replaceState({}, '', newUrl.toString());
 
+      // 在更新视频源之前销毁当前播放器实例
+      if (artPlayerRef.current)
+      {
+        if (artPlayerRef.current.video && artPlayerRef.current.video.hls)
+        {
+          artPlayerRef.current.video.hls.destroy();
+        }
+        artPlayerRef.current.destroy();
+        artPlayerRef.current = null;
+      }
+
       setVideoTitle(newDetail.title || newTitle);
       setVideoYear(newDetail.year);
       setVideoCover(newDetail.poster);
@@ -1191,6 +1174,12 @@ function PlayPageClient()
       setCurrentId(newId);
       setDetail(newDetail);
       setCurrentEpisodeIndex(targetIndex);
+
+      // 设置一个短暂的延时，确保DOM已更新
+      setTimeout(() =>
+      {
+        setIsVideoLoading(false);
+      }, 100);
     } catch (err)
     {
       // 隐藏换源加载状态
@@ -2083,25 +2072,25 @@ function PlayPageClient()
               <div className='flex justify-center space-x-2 mb-4'>
                 <div
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${loadingStage === 'searching' || loadingStage === 'fetching'
-                      ? 'bg-green-500 scale-125'
-                      : loadingStage === 'preferring' ||
-                        loadingStage === 'ready'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                    ? 'bg-green-500 scale-125'
+                    : loadingStage === 'preferring' ||
+                      loadingStage === 'ready'
+                      ? 'bg-green-500'
+                      : 'bg-gray-300'
                     }`}
                 ></div>
                 <div
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${loadingStage === 'preferring'
-                      ? 'bg-green-500 scale-125'
-                      : loadingStage === 'ready'
-                        ? 'bg-green-500'
-                        : 'bg-gray-300'
+                    ? 'bg-green-500 scale-125'
+                    : loadingStage === 'ready'
+                      ? 'bg-green-500'
+                      : 'bg-gray-300'
                     }`}
                 ></div>
                 <div
                   className={`w-3 h-3 rounded-full transition-all duration-500 ${loadingStage === 'ready'
-                      ? 'bg-green-500 scale-125'
-                      : 'bg-gray-300'
+                    ? 'bg-green-500 scale-125'
+                    : 'bg-gray-300'
                     }`}
                 ></div>
               </div>
@@ -2252,8 +2241,8 @@ function PlayPageClient()
               {/* 精致的状态指示点 */}
               <div
                 className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full transition-all duration-200 ${isEpisodeSelectorCollapsed
-                    ? 'bg-orange-400 animate-pulse'
-                    : 'bg-green-400'
+                  ? 'bg-orange-400 animate-pulse'
+                  : 'bg-green-400'
                   }`}
               ></div>
             </button>
@@ -2261,8 +2250,8 @@ function PlayPageClient()
 
           <div
             className={`grid gap-4 lg:h-[500px] xl:h-[650px] 2xl:h-[750px] transition-all duration-300 ease-in-out ${isEpisodeSelectorCollapsed
-                ? 'grid-cols-1'
-                : 'grid-cols-1 md:grid-cols-4'
+              ? 'grid-cols-1'
+              : 'grid-cols-1 md:grid-cols-4'
               }`}
           >
             {/* 播放器 */}
@@ -2307,7 +2296,9 @@ function PlayPageClient()
                         <p className='text-xl font-semibold text-white animate-pulse'>
                           {videoLoadingStage === 'sourceChanging'
                             ? '🔄 切换播放源...'
-                            : '🔄 视频加载中...'}
+                            : videoLoadingStage === 'optimizing'
+                              ? '⚡ 优选播放源...'
+                              : '🔄 视频加载中...'}
                         </p>
                       </div>
                     </div>
@@ -2319,8 +2310,8 @@ function PlayPageClient()
             {/* 选集和换源 - 在移动端始终显示，在 lg 及以上可折叠 */}
             <div
               className={`h-[300px] lg:h-full md:overflow-hidden transition-all duration-300 ease-in-out ${isEpisodeSelectorCollapsed
-                  ? 'md:col-span-1 lg:hidden lg:opacity-0 lg:scale-95'
-                  : 'md:col-span-1 lg:opacity-100 lg:scale-100'
+                ? 'md:col-span-1 lg:hidden lg:opacity-0 lg:scale-95'
+                : 'md:col-span-1 lg:opacity-100 lg:scale-100'
                 }`}
             >
               <EpisodeSelector
@@ -2336,6 +2327,10 @@ function PlayPageClient()
                 sourceSearchLoading={sourceSearchLoading}
                 sourceSearchError={sourceSearchError}
                 precomputedVideoInfo={precomputedVideoInfo}
+                preferBestSource={preferBestSource}
+                setLoading={setLoading}
+                setIsVideoLoading={setIsVideoLoading}
+                setVideoLoadingStage={setVideoLoadingStage}
               />
             </div>
           </div>

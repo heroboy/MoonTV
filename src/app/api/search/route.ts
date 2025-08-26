@@ -12,6 +12,13 @@ export async function GET(request: Request)
   const streamParam = searchParams.get('stream');
   const enableStream = streamParam !== '0'; // 默认开启流式
 
+  const config = await getConfig();
+  const apiSites = config.SourceConfig.filter((site) => !site.disabled);
+
+  const encoder = new TextEncoder();
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+
   if (!query)
   {
     // 空查询，明确不缓存
@@ -24,80 +31,6 @@ export async function GET(request: Request)
       },
     });
   }
-
-  const config = await getConfig();
-  const apiSites = config.SourceConfig.filter((site) => !site.disabled);
-
-  if (!enableStream)
-  {
-    // 非流式：聚合完成后根据是否为空设置缓存策略
-    const aggregatedResults: any[] = [];
-    const failedSources: { name: string; key: string; error: string; }[] = [];
-
-    for (const site of apiSites)
-    {
-      try
-      {
-        const generator = searchFromApiStream(site, query);
-        let hasResults = false;
-        for await (const pageResults of generator)
-        {
-          hasResults = true;
-          let filteredResults = pageResults;
-          if (!config.SiteConfig.DisableYellowFilter)
-          {
-            filteredResults = pageResults.filter((result) =>
-            {
-              const typeName = result.type_name || '';
-              return !yellowWords.some((word) => typeName.includes(word));
-            });
-          }
-          aggregatedResults.push(...filteredResults);
-        }
-        // 如果没有结果，也记录为失败
-        if (!hasResults)
-        {
-          failedSources.push({ name: site.name, key: site.key, error: '无搜索结果' });
-        }
-      } catch (err: any)
-      {
-        console.warn(`搜索失败 ${site.name}:`, err.message);
-        failedSources.push({ name: site.name, key: site.key, error: err.message || '未知错误' });
-      }
-    }
-
-    if (aggregatedResults.length === 0)
-    {
-      return new Response(JSON.stringify({
-        aggregatedResults,
-        failedSources
-      }), {
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-          Pragma: 'no-cache',
-          Expires: '0',
-        },
-      });
-    } else
-    {
-      const cacheTime = await getCacheTime();
-      return new Response(JSON.stringify({
-        aggregatedResults,
-        failedSources
-      }), {
-        headers: {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Cache-Control': `private, max-age=${cacheTime}`,
-        },
-      });
-    }
-  }
-
-  // 流式：保持原有流式行为（无法在响应开始后再按"是否为空"调整缓存头）
-  const encoder = new TextEncoder();
-  const { readable, writable } = new TransformStream();
-  const writer = writable.getWriter();
 
   // 安全写入与断连处理
   let shouldStop = false;
@@ -128,21 +61,25 @@ export async function GET(request: Request)
     }
   };
 
-  (async () =>
+  // -------------------------
+  // 非流式：并发
+  // -------------------------
+  if (!enableStream)
   {
-    const aggregatedResults: any[] = [];
-    const failedSources: { name: string; key: string; error: string; }[] = [];
-
-    for (const site of apiSites)
+    const tasks = apiSites.map(async (site) =>
     {
+      const siteResults: any[] = [];
+      let hasResults = false;
       try
       {
         const generator = searchFromApiStream(site, query);
-        let hasResults = false;
         for await (const pageResults of generator)
         {
-          hasResults = true;
           let filteredResults = pageResults;
+          if (filteredResults.length !== 0)
+          {
+            hasResults = true;
+          }
           if (!config.SiteConfig.DisableYellowFilter)
           {
             filteredResults = pageResults.filter((result) =>
@@ -151,32 +88,119 @@ export async function GET(request: Request)
               return !yellowWords.some((word) => typeName.includes(word));
             });
           }
-          aggregatedResults.push(...filteredResults);
-          if (!(await safeWrite({ pageResults: filteredResults })))
+          if (hasResults && filteredResults.length === 0)
           {
-            break;
+            throw new Error('结果被过滤');
+          }
+          siteResults.push(...filteredResults);
+        }
+        if (!hasResults)
+        {
+          throw new Error('无搜索结果');
+        }
+        return { siteResults, failed: null };
+      } catch (err: any)
+      {
+        return {
+          siteResults: [],
+          failed: { name: site.name, key: site.key, error: err.message || '未知的错误' },
+        };
+      }
+    });
+
+    const results = await Promise.all(tasks);
+    const aggregatedResults = results.flatMap((r) => r.siteResults);
+    const failedSources = results.filter((r) => r.failed).map((r) => r.failed);
+
+    if (aggregatedResults.length === 0)
+    {
+      return new Response(JSON.stringify({ aggregatedResults, failedSources }), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
+          Pragma: 'no-cache',
+          Expires: '0',
+        },
+      });
+    } else
+    {
+      const cacheTime = await getCacheTime();
+      return new Response(JSON.stringify({ aggregatedResults, failedSources }), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Cache-Control': `private, max-age=${cacheTime}`,
+        },
+      });
+    }
+  }
+
+  // -------------------------
+  // 流式：并发
+  // -------------------------
+  (async () =>
+  {
+    const aggregatedResults: any[] = [];
+    const failedSources: { name: string; key: string; error: string; }[] = [];
+
+    const tasks = apiSites.map(async (site) =>
+    {
+      try
+      {
+        const generator = searchFromApiStream(site, query);
+        let hasResults = false;
+
+        for await (const pageResults of generator)
+        {
+          let filteredResults = pageResults;
+          if (filteredResults.length !== 0)
+          {
+            hasResults = true;
+          }
+          if (!config.SiteConfig.DisableYellowFilter)
+          {
+            filteredResults = pageResults.filter((result) =>
+            {
+              const typeName = result.type_name || '';
+              return !yellowWords.some((word) => typeName.includes(word));
+            });
+          }
+
+          if (hasResults && filteredResults.length === 0)
+          {
+            failedSources.push({ name: site.name, key: site.key, error: '结果被过滤' });
+            await safeWrite({ failedSources });
+            return;
+          }
+
+          aggregatedResults.push(...filteredResults);
+          if (!(await safeWrite({ site: site.key, pageResults: filteredResults })))
+          {
+            return;
           }
         }
-        // 如果没有结果，也记录为失败
+
         if (!hasResults)
         {
           failedSources.push({ name: site.name, key: site.key, error: '无搜索结果' });
+          await safeWrite({ failedSources });
         }
       } catch (err: any)
       {
         console.warn(`搜索失败 ${site.name}:`, err.message);
-        failedSources.push({ name: site.name, key: site.key, error: err.message || '未知错误' });
+        failedSources.push({ name: site.name, key: site.key, error: err.message || '未知的错误' });
+        await safeWrite({ failedSources });
       }
-      if (shouldStop) break;
-    }
+    });
 
-    // 发送失败的数据源信息
+    // 等所有 site 跑完
+    await Promise.allSettled(tasks);
+
     if (failedSources.length > 0)
     {
       await safeWrite({ failedSources });
     }
-
     await safeWrite({ aggregatedResults });
+
     try
     {
       await writer.close();

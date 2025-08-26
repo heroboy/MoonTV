@@ -42,6 +42,13 @@ interface EpisodeSelectorProps {
   sourceSearchError?: string | null;
   /** 预计算的测速结果，避免重复测速 */
   precomputedVideoInfo?: Map<string, VideoInfo>;
+  /** 优选播放源相关 */
+  preferBestSource?: (sources: SearchResult[]) => Promise<SearchResult>;
+  setLoading: (loading: boolean) => void;
+  /** 设置视频是否正在加载中的状态 */
+  setIsVideoLoading: (loading: boolean) => void;
+  /** 设置视频加载阶段的状态 */
+  setVideoLoadingStage: (stage: 'initing' | 'sourceChanging' | 'optimizing') => void;
 }
 
 /**
@@ -61,6 +68,10 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
   sourceSearchLoading = false,
   sourceSearchError = null,
   precomputedVideoInfo,
+  preferBestSource,
+  setLoading,
+  setIsVideoLoading,
+  setVideoLoadingStage
 }) => {
   const router = useRouter();
   const pageCount = Math.ceil(totalEpisodes / episodesPerPage);
@@ -293,7 +304,13 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
 
   const handleSourceClick = useCallback(
     (source: SearchResult) => {
-      onSourceChange?.(source.source, source.id, source.title);
+      if (!source || !source.source || !source.id) return;
+      // 确保传递完整的参数
+      onSourceChange?.(
+        source.source,
+        source.id,
+        source.title || source.source_name || ''
+      );
     },
     [onSourceChange]
   );
@@ -324,7 +341,7 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
         )}
         <div
           onClick={handleSourceTabClick}
-          className={`flex-1 py-3 px-6 text-center cursor-pointer transition-all duration-200 font-medium
+          className={`flex-1 py-3 px-6 text-center cursor-pointer transition-all duration-200 font-medium flex items-center justify-center
             ${
               activeTab === 'sources'
                 ? 'text-green-600 dark:text-green-400'
@@ -332,7 +349,47 @@ const EpisodeSelector: React.FC<EpisodeSelectorProps> = ({
             }
           `.trim()}
         >
-          换源
+          <span>换源</span>
+          {preferBestSource && availableSources && availableSources.length > 0 && (
+            <div
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!availableSources || availableSources.length === 0) return;
+                setVideoLoadingStage('optimizing');
+                setIsVideoLoading(true);
+                preferBestSource(availableSources)
+                  .then((bestSource) => {
+                    // 确保bestSource有效
+                    if (bestSource && bestSource.source !== currentSource && bestSource.id !== currentId) {
+                      // 无论是否是当前源，都调用handleSourceClick重新加载播放器
+                      handleSourceClick(bestSource);
+                    }else{
+                      setIsVideoLoading(false);
+                    }
+                  })
+                  .catch((_err: Error) => {
+                    // 静默处理错误，因为已经有UI提示
+                  })
+                  .finally(() => {
+                    if (setLoading) setLoading(false);
+                  });
+              }}
+              className="ml-2 bg-blue-500 text-white text-xs font-bold w-6 h-6 rounded-full flex items-center justify-center shadow-md hover:bg-blue-600 hover:scale-110 transition-all duration-300 ease-out"
+              title="优选播放源"
+            >
+              <svg
+                className="w-3.5 h-3.5"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+          )}
         </div>
       </div>
 
