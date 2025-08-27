@@ -354,6 +354,29 @@ export default function VideoCard({
           </div>
         )}
 
+        {/* ⭐ 评分显示（左上角小圆圈，可跳转豆瓣） */}
+        {config.showRating && rate && actualDoubanId && (
+          <div
+            onClick={(e) => {
+              e.stopPropagation(); // 阻止触发卡片点击
+              window.open(`https://movie.douban.com/subject/${actualDoubanId}`, '_blank');
+            }}
+            className="absolute top-2 left-2 bg-pink-500 text-white text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-full shadow-md cursor-pointer hover:bg-pink-600 transition"
+            title="去豆瓣查看详情"
+          >
+            {rate}
+          </div>
+        )}
+
+        {/* 📅 年份显示（左上角） */}
+        {from === 'search' && actualYear && actualYear.toLowerCase() !== 'unknown' && (
+        <div
+          className="absolute top-2 left-2 bg-black/60 text-white text-[10px] sm:text-xs font-medium px-2 py-0.5 rounded-full shadow-md"
+        >
+          {actualYear}
+        </div>
+        )}
+
         {/* 集数 */}
         {actualEpisodes && actualEpisodes > 1 && (
           <div className='absolute top-2 right-2 bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-md shadow-md transition-all duration-300 ease-out group-hover:scale-110'>
