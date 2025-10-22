@@ -9,8 +9,9 @@ import { useEffect, useState } from 'react';
 
 import { getCustomCategories } from '@/lib/config.client';
 
-interface MobileBottomNavProps
-{
+import { useNavigationLoading } from './NavigationLoadingProvider';
+
+interface MobileBottomNavProps {
   /**
    * 主动指定当前激活的路径。当未提供时，自动使用 usePathname() 获取的路径。
    */
@@ -20,6 +21,7 @@ interface MobileBottomNavProps
 const MobileBottomNav = ({ activePath }: MobileBottomNavProps) =>
 {
   const pathname = usePathname();
+  const { startLoading } = useNavigationLoading();
 
   // 当前激活路径：优先使用传入的 activePath，否则回退到浏览器地址
   const currentActive = activePath ?? pathname;
@@ -49,12 +51,23 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) =>
     },
   ]);
 
-  useEffect(() =>
-  {
-    getCustomCategories().then((categories) =>
-    {
-      if (categories.length > 0)
-      {
+  // 检查是否启用简洁模式 - 使用状态管理
+  const [simpleMode, setSimpleMode] = useState(false);
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+    if (typeof window !== 'undefined') {
+      const savedSimpleMode = localStorage.getItem('simpleMode');
+      if (savedSimpleMode !== null) {
+        setSimpleMode(JSON.parse(savedSimpleMode));
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    getCustomCategories().then((categories) => {
+      if (categories.length > 0) {
         setNavItems((prevItems) => [
           ...prevItems,
           {
@@ -96,15 +109,34 @@ const MobileBottomNav = ({ activePath }: MobileBottomNavProps) =>
         {navItems.map((item) =>
         {
           const active = isActive(item.href);
+          
+          // 简洁模式下只显示首页和搜索，但在服务器端渲染时先不渲染
+          if (!isClient) {
+            return null; // 服务器端渲染时不显示任何内容，避免闪烁
+          }
+          
+          if (simpleMode && !['/', '/search'].includes(item.href)) {
+            return null;
+          }
+
           return (
             <li
               key={item.href}
               className='flex-shrink-0'
-              style={{ width: '20vw', minWidth: '20vw' }}
+              style={{
+                width: simpleMode ? '50vw' : '20vw',
+                minWidth: simpleMode ? '50vw' : '20vw'
+              }}
             >
               <Link
                 href={item.href}
                 className='flex flex-col items-center justify-center w-full h-14 gap-1 text-xs'
+                onClick={(e) => {
+                  // 如果不是当前激活的链接，则触发加载动画
+                  if (!active) {
+                    startLoading();
+                  }
+                }}
               >
                 <item.icon
                   className={`h-6 w-6 ${active

@@ -6,450 +6,467 @@ import { Favorite, IStorage, PlayRecord, SkipConfig } from './types';
 // 搜索历史最大条数
 const SEARCH_HISTORY_LIMIT = 20;
 
-// D1 数据库接口
+// D1 数据库类型定义
 interface D1Database {
-  prepare(sql: string): D1PreparedStatement;
-  exec(sql: string): Promise<D1ExecResult>;
-  batch(statements: D1PreparedStatement[]): Promise<D1Result[]>;
+  prepare(query: string): D1PreparedStatement;
+  exec(query: string): Promise<D1Result>;
 }
 
 interface D1PreparedStatement {
-  bind(...values: any[]): D1PreparedStatement;
-  first<T = any>(colName?: string): Promise<T | null>;
-  run(): Promise<D1Result>;
+  bind(...params: any[]): D1PreparedStatement;
+  first<T = any>(): Promise<T | null>;
   all<T = any>(): Promise<D1Result<T>>;
+  run(): Promise<D1Result>;
 }
 
 interface D1Result<T = any> {
-  results: T[];
   success: boolean;
-  error?: string;
-  meta: {
-    changed_db: boolean;
-    changes: number;
-    last_row_id: number;
-    duration: number;
-  };
+  results?: T[];
+  meta?: any;
 }
 
-interface D1ExecResult {
-  count: number;
-  duration: number;
-}
-
-// 获取全局D1数据库实例
+// 获取 D1 数据库绑定
 function getD1Database(): D1Database {
-  return (process.env as any).DB as D1Database;
+  // 在 Cloudflare Pages 环境中，D1 数据库通过环境变量绑定
+  if (typeof process !== 'undefined' && process.env) {
+    return (process.env as any).DB as D1Database;
+  }
+
+  // 在浏览器环境中，D1 不可用
+  throw new Error(
+    'D1 database is only available in Cloudflare Pages environment'
+  );
 }
 
 export class D1Storage implements IStorage {
-  private db: D1Database | null = null;
+  private db: D1Database;
 
-  private async getDatabase(): Promise<D1Database> {
-    if (!this.db) {
-      this.db = getD1Database();
-    }
-    return this.db;
+  constructor() {
+    this.db = getD1Database();
   }
 
-  // 播放记录相关
+  // ---------- 用户相关 ----------
+  private async getUserId(username: string): Promise<number | null> {
+    const result = await this.db
+      .prepare('SELECT id FROM users WHERE username = ?')
+      .bind(username)
+      .first();
+
+    return result ? (result.id as number) : null;
+  }
+
+  // 如果用户不存在则自动创建（角色默认为 user）
+  private async ensureUser(username: string): Promise<number> {
+    let userId = await this.getUserId(username);
+    if (userId) return userId;
+
+    await this.db
+      .prepare('INSERT INTO users (username, password, role) VALUES (?, ?, ?)')
+      .bind(username, '', 'user')
+      .run();
+
+    userId = await this.getUserId(username);
+    if (!userId) throw new Error('Failed to create user');
+    return userId;
+  }
+
+  async registerUser(userName: string, password: string): Promise<void> {
+    await this.db
+      .prepare('INSERT INTO users (username, password) VALUES (?, ?)')
+      .bind(userName, password)
+      .run();
+  }
+
+  async verifyUser(userName: string, password: string): Promise<boolean> {
+    const result = await this.db
+      .prepare('SELECT id FROM users WHERE username = ? AND password = ?')
+      .bind(userName, password)
+      .first();
+
+    return !!result;
+  }
+
+  async checkUserExist(userName: string): Promise<boolean> {
+    const result = await this.db
+      .prepare('SELECT id FROM users WHERE username = ?')
+      .bind(userName)
+      .first();
+
+    return !!result;
+  }
+
+  async changePassword(userName: string, newPassword: string): Promise<void> {
+    const userId = await this.getUserId(userName);
+    if (!userId) throw new Error('User not found');
+
+    await this.db
+      .prepare('UPDATE users SET password = ? WHERE id = ?')
+      .bind(newPassword, userId)
+      .run();
+  }
+
+  async deleteUser(userName: string): Promise<void> {
+    const userId = await this.getUserId(userName);
+    if (!userId) return;
+
+    // 删除用户的所有数据
+    await this.db
+      .prepare('DELETE FROM play_records WHERE user_id = ?')
+      .bind(userId)
+      .run();
+
+    await this.db
+      .prepare('DELETE FROM favorites WHERE user_id = ?')
+      .bind(userId)
+      .run();
+
+    await this.db
+      .prepare('DELETE FROM search_history WHERE user_id = ?')
+      .bind(userId)
+      .run();
+
+    await this.db
+      .prepare('DELETE FROM skip_configs WHERE user_id = ?')
+      .bind(userId)
+      .run();
+
+    await this.db.prepare('DELETE FROM users WHERE id = ?').bind(userId).run();
+  }
+
+  // ---------- 播放记录 ----------
   async getPlayRecord(
     userName: string,
-    key: string,
+    key: string
   ): Promise<PlayRecord | null> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare('SELECT * FROM play_records WHERE username = ? AND key = ?')
-        .bind(userName, key)
-        .first<any>();
-
-      if (!result) return null;
-
-      return {
-        title: result.title,
-        source_name: result.source_name,
-        cover: result.cover,
-        year: result.year,
-        index: result.index_episode,
-        total_episodes: result.total_episodes,
-        play_time: result.play_time,
-        total_time: result.total_time,
-        save_time: result.save_time,
-        search_title: result.search_title || undefined,
-      };
-    } catch (err) {
-      console.error('Failed to get play record:', err);
-      throw err;
+    const [source, videoId] = key.split('+');
+    if (!source || !videoId) {
+      return null;
     }
+    const userId = await this.getUserId(userName);
+    if (!userId) return null;
+
+    const result = await this.db
+      .prepare(
+        `
+        SELECT * FROM play_records 
+        WHERE user_id = ? AND source = ? AND video_id = ?
+      `
+      )
+      .bind(userId, source, videoId)
+      .first();
+
+    if (!result) return null;
+
+    return {
+      title: result.title as string,
+      source_name: result.source_name as string,
+      year: result.year as string,
+      cover: result.cover as string,
+      index: result.episode_index as number,
+      total_episodes: result.total_episodes as number,
+      play_time: result.play_time as number,
+      total_time: result.total_time as number,
+      save_time: result.save_time as number,
+      search_title: result.search_title as string,
+    };
   }
 
   async setPlayRecord(
     userName: string,
     key: string,
-    record: PlayRecord,
+    record: PlayRecord
   ): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare(
-          `
-          INSERT OR REPLACE INTO play_records 
-          (username, key, title, source_name, cover, year, index_episode, total_episodes, play_time, total_time, save_time, search_title)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        )
-        .bind(
-          userName,
-          key,
-          record.title,
-          record.source_name,
-          record.cover,
-          record.year,
-          record.index,
-          record.total_episodes,
-          record.play_time,
-          record.total_time,
-          record.save_time,
-          record.search_title || null,
-        )
-        .run();
-    } catch (err) {
-      console.error('Failed to set play record:', err);
-      throw err;
+    const [source, videoId] = key.split('+');
+    if (!source || !videoId) {
+      throw new Error('Invalid key format for play record');
     }
+    const userId = await this.ensureUser(userName);
+
+    await this.db
+      .prepare(
+        `
+        INSERT INTO play_records 
+        (user_id, source, video_id, title, source_name, year, cover, episode_index, 
+         total_episodes, play_time, total_time, save_time, search_title)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, source, video_id) 
+        DO UPDATE SET
+          title = excluded.title,
+          source_name = excluded.source_name,
+          year = excluded.year,
+          cover = excluded.cover,
+          episode_index = excluded.episode_index,
+          total_episodes = excluded.total_episodes,
+          play_time = excluded.play_time,
+          total_time = excluded.total_time,
+          save_time = excluded.save_time,
+          search_title = excluded.search_title,
+          updated_at = CURRENT_TIMESTAMP
+      `
+      )
+      .bind(
+        userId,
+        source,
+        videoId,
+        record.title || '',
+        record.source_name || '',
+        record.year || '',
+        record.cover || '',
+        record.index ?? 0,
+        record.total_episodes ?? 0,
+        record.play_time ?? 0,
+        record.total_time ?? 0,
+        record.save_time ?? Date.now(),
+        record.search_title || ''
+      )
+      .run();
   }
 
   async getAllPlayRecords(
-    userName: string,
+    userName: string
   ): Promise<Record<string, PlayRecord>> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare(
-          'SELECT * FROM play_records WHERE username = ? ORDER BY save_time DESC',
-        )
-        .bind(userName)
-        .all<any>();
+    const userId = await this.getUserId(userName);
+    if (!userId) return {};
 
-      const records: Record<string, PlayRecord> = {};
+    const results = await this.db
+      .prepare('SELECT * FROM play_records WHERE user_id = ?')
+      .bind(userId)
+      .all();
 
-      result.results.forEach((row: any) => {
-        records[row.key] = {
-          title: row.title,
-          source_name: row.source_name,
-          cover: row.cover,
-          year: row.year,
-          index: row.index_episode,
-          total_episodes: row.total_episodes,
-          play_time: row.play_time,
-          total_time: row.total_time,
-          save_time: row.save_time,
-          search_title: row.search_title || undefined,
-        };
-      });
-
-      return records;
-    } catch (err) {
-      console.error('Failed to get all play records:', err);
-      throw err;
+    const records: Record<string, PlayRecord> = {};
+    for (const result of results.results || []) {
+      const key = `${result.source}+${result.video_id}`;
+      records[key] = {
+        title: result.title as string,
+        source_name: result.source_name as string,
+        year: result.year as string,
+        cover: result.cover as string,
+        index: result.episode_index as number,
+        total_episodes: result.total_episodes as number,
+        play_time: result.play_time as number,
+        total_time: result.total_time as number,
+        save_time: result.save_time as number,
+        search_title: result.search_title as string,
+      };
     }
+
+    return records;
   }
 
   async deletePlayRecord(userName: string, key: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare('DELETE FROM play_records WHERE username = ? AND key = ?')
-        .bind(userName, key)
-        .run();
-    } catch (err) {
-      console.error('Failed to delete play record:', err);
-      throw err;
+    const [source, videoId] = key.split('+');
+    if (!source || !videoId) {
+      return;
     }
+    const userId = await this.getUserId(userName);
+    if (!userId) return;
+
+    await this.db
+      .prepare(
+        'DELETE FROM play_records WHERE user_id = ? AND source = ? AND video_id = ?'
+      )
+      .bind(userId, source, videoId)
+      .run();
   }
 
-  // 收藏相关
+  // ---------- 收藏 ----------
   async getFavorite(userName: string, key: string): Promise<Favorite | null> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare('SELECT * FROM favorites WHERE username = ? AND key = ?')
-        .bind(userName, key)
-        .first<any>();
-
-      if (!result) return null;
-
-      return {
-        title: result.title,
-        source_name: result.source_name,
-        cover: result.cover,
-        year: result.year,
-        total_episodes: result.total_episodes,
-        save_time: result.save_time,
-        search_title: result.search_title,
-      };
-    } catch (err) {
-      console.error('Failed to get favorite:', err);
-      throw err;
+    const [source, videoId] = key.split('+');
+    if (!source || !videoId) {
+      return null;
     }
+    const userId = await this.getUserId(userName);
+    if (!userId) return null;
+
+    const result = await this.db
+      .prepare(
+        'SELECT * FROM favorites WHERE user_id = ? AND source = ? AND video_id = ?'
+      )
+      .bind(userId, source, videoId)
+      .first();
+
+    if (!result) return null;
+
+    return {
+      title: result.title as string,
+      source_name: result.source_name as string,
+      year: result.year as string,
+      cover: result.cover as string,
+      total_episodes: result.total_episodes as number,
+      save_time: result.save_time as number,
+      search_title: result.search_title as string,
+    };
   }
 
   async setFavorite(
     userName: string,
     key: string,
-    favorite: Favorite,
+    favorite: Favorite
   ): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare(
-          `
-          INSERT OR REPLACE INTO favorites 
-          (username, key, title, source_name, cover, year, total_episodes, save_time)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `,
-        )
-        .bind(
-          userName,
-          key,
-          favorite.title,
-          favorite.source_name,
-          favorite.cover,
-          favorite.year,
-          favorite.total_episodes,
-          favorite.save_time,
-        )
-        .run();
-    } catch (err) {
-      console.error('Failed to set favorite:', err);
-      throw err;
+    const [source, videoId] = key.split('+');
+    if (!source || !videoId) {
+      throw new Error('Invalid key format for favorite');
     }
+    const userId = await this.ensureUser(userName);
+
+    await this.db
+      .prepare(
+        `
+        INSERT INTO favorites 
+        (user_id, source, video_id, title, source_name, year, cover, total_episodes, save_time, search_title)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, source, video_id) 
+        DO UPDATE SET
+          title = excluded.title,
+          source_name = excluded.source_name,
+          year = excluded.year,
+          cover = excluded.cover,
+          total_episodes = excluded.total_episodes,
+          save_time = excluded.save_time,
+          search_title = excluded.search_title
+      `
+      )
+      .bind(
+        userId,
+        source,
+        videoId,
+        favorite.title || '',
+        favorite.source_name || '',
+        favorite.year || '',
+        favorite.cover || '',
+        favorite.total_episodes ?? 0,
+        favorite.save_time ?? Date.now(),
+        favorite.search_title || ''
+      )
+      .run();
   }
 
   async getAllFavorites(userName: string): Promise<Record<string, Favorite>> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare(
-          'SELECT * FROM favorites WHERE username = ? ORDER BY save_time DESC',
-        )
-        .bind(userName)
-        .all<any>();
+    const userId = await this.getUserId(userName);
+    if (!userId) return {};
 
-      const favorites: Record<string, Favorite> = {};
+    const results = await this.db
+      .prepare('SELECT * FROM favorites WHERE user_id = ?')
+      .bind(userId)
+      .all();
 
-      result.results.forEach((row: any) => {
-        favorites[row.key] = {
-          title: row.title,
-          source_name: row.source_name,
-          cover: row.cover,
-          year: row.year,
-          total_episodes: row.total_episodes,
-          save_time: row.save_time,
-          search_title: row.search_title,
-        };
-      });
-
-      return favorites;
-    } catch (err) {
-      console.error('Failed to get all favorites:', err);
-      throw err;
+    const favorites: Record<string, Favorite> = {};
+    for (const result of results.results || []) {
+      const key = `${result.source}+${result.video_id}`;
+      favorites[key] = {
+        title: result.title as string,
+        source_name: result.source_name as string,
+        year: result.year as string,
+        cover: result.cover as string,
+        total_episodes: result.total_episodes as number,
+        save_time: result.save_time as number,
+        search_title: result.search_title as string,
+      };
     }
+
+    return favorites;
   }
 
   async deleteFavorite(userName: string, key: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare('DELETE FROM favorites WHERE username = ? AND key = ?')
-        .bind(userName, key)
-        .run();
-    } catch (err) {
-      console.error('Failed to delete favorite:', err);
-      throw err;
+    const [source, videoId] = key.split('+');
+    if (!source || !videoId) {
+      return;
     }
+    const userId = await this.getUserId(userName);
+    if (!userId) return;
+
+    await this.db
+      .prepare(
+        'DELETE FROM favorites WHERE user_id = ? AND source = ? AND video_id = ?'
+      )
+      .bind(userId, source, videoId)
+      .run();
   }
 
-  // 用户相关
-  async registerUser(userName: string, password: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare('INSERT INTO users (username, password) VALUES (?, ?)')
-        .bind(userName, password)
-        .run();
-    } catch (err) {
-      console.error('Failed to register user:', err);
-      throw err;
-    }
-  }
-
-  async verifyUser(userName: string, password: string): Promise<boolean> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare('SELECT password FROM users WHERE username = ?')
-        .bind(userName)
-        .first<{ password: string }>();
-
-      return result?.password === password;
-    } catch (err) {
-      console.error('Failed to verify user:', err);
-      throw err;
-    }
-  }
-
-  async checkUserExist(userName: string): Promise<boolean> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare('SELECT 1 FROM users WHERE username = ?')
-        .bind(userName)
-        .first();
-
-      return result !== null;
-    } catch (err) {
-      console.error('Failed to check user existence:', err);
-      throw err;
-    }
-  }
-
-  async changePassword(userName: string, newPassword: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare('UPDATE users SET password = ? WHERE username = ?')
-        .bind(newPassword, userName)
-        .run();
-    } catch (err) {
-      console.error('Failed to change password:', err);
-      throw err;
-    }
-  }
-
-  async deleteUser(userName: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      const statements = [
-        db.prepare('DELETE FROM users WHERE username = ?').bind(userName),
-        db
-          .prepare('DELETE FROM play_records WHERE username = ?')
-          .bind(userName),
-        db.prepare('DELETE FROM favorites WHERE username = ?').bind(userName),
-        db
-          .prepare('DELETE FROM search_history WHERE username = ?')
-          .bind(userName),
-        db
-          .prepare('DELETE FROM skip_configs WHERE username = ?')
-          .bind(userName),
-      ];
-
-      await db.batch(statements);
-    } catch (err) {
-      console.error('Failed to delete user:', err);
-      throw err;
-    }
-  }
-
-  // 搜索历史相关
+  // ---------- 搜索历史 ----------
   async getSearchHistory(userName: string): Promise<string[]> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare(
-          'SELECT keyword FROM search_history WHERE username = ? ORDER BY created_at DESC LIMIT ?',
-        )
-        .bind(userName, SEARCH_HISTORY_LIMIT)
-        .all<{ keyword: string }>();
+    const userId = await this.getUserId(userName);
+    if (!userId) return [];
 
-      return result.results.map((row) => row.keyword);
-    } catch (err) {
-      console.error('Failed to get search history:', err);
-      throw err;
-    }
+    const results = await this.db
+      .prepare(
+        `
+        SELECT keyword FROM search_history 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC 
+        LIMIT ?
+      `
+      )
+      .bind(userId, SEARCH_HISTORY_LIMIT)
+      .all();
+
+    return (results.results || []).map(
+      (result: any) => result.keyword as string
+    );
   }
 
   async addSearchHistory(userName: string, keyword: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      // 先删除可能存在的重复记录
-      await db
-        .prepare(
-          'DELETE FROM search_history WHERE username = ? AND keyword = ?',
-        )
-        .bind(userName, keyword)
-        .run();
+    const userId = await this.ensureUser(userName);
 
-      // 添加新记录
-      await db
-        .prepare('INSERT INTO search_history (username, keyword) VALUES (?, ?)')
-        .bind(userName, keyword)
-        .run();
+    // 先删除已存在的相同关键词
+    await this.db
+      .prepare('DELETE FROM search_history WHERE user_id = ? AND keyword = ?')
+      .bind(userId, keyword)
+      .run();
 
-      // 保持历史记录条数限制
-      await db
-        .prepare(
-          `
-          DELETE FROM search_history 
-          WHERE username = ? AND id NOT IN (
-            SELECT id FROM search_history 
-            WHERE username = ? 
-            ORDER BY created_at DESC 
-            LIMIT ?
-          )
-        `,
+    // 插入新关键词
+    await this.db
+      .prepare('INSERT INTO search_history (user_id, keyword) VALUES (?, ?)')
+      .bind(userId, keyword)
+      .run();
+
+    // 保持搜索历史不超过限制
+    await this.db
+      .prepare(
+        `
+        DELETE FROM search_history 
+        WHERE user_id = ? AND id NOT IN (
+          SELECT id FROM search_history 
+          WHERE user_id = ? 
+          ORDER BY created_at DESC 
+          LIMIT ?
         )
-        .bind(userName, userName, SEARCH_HISTORY_LIMIT)
-        .run();
-    } catch (err) {
-      console.error('Failed to add search history:', err);
-      throw err;
-    }
+      `
+      )
+      .bind(userId, userId, SEARCH_HISTORY_LIMIT)
+      .run();
   }
 
   async deleteSearchHistory(userName: string, keyword?: string): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      if (keyword) {
-        await db
-          .prepare(
-            'DELETE FROM search_history WHERE username = ? AND keyword = ?',
-          )
-          .bind(userName, keyword)
-          .run();
-      } else {
-        await db
-          .prepare('DELETE FROM search_history WHERE username = ?')
-          .bind(userName)
-          .run();
-      }
-    } catch (err) {
-      console.error('Failed to delete search history:', err);
-      throw err;
+    const userId = await this.getUserId(userName);
+    if (!userId) return;
+
+    if (keyword) {
+      await this.db
+        .prepare('DELETE FROM search_history WHERE user_id = ? AND keyword = ?')
+        .bind(userId, keyword)
+        .run();
+    } else {
+      await this.db
+        .prepare('DELETE FROM search_history WHERE user_id = ?')
+        .bind(userId)
+        .run();
     }
   }
 
-  // 用户列表
+  // ---------- 获取全部用户 ----------
   async getAllUsers(): Promise<string[]> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare('SELECT username FROM users ORDER BY created_at ASC')
-        .all<{ username: string }>();
+    const results = await this.db.prepare('SELECT username FROM users').all();
 
-      return result.results.map((row) => row.username);
-    } catch (err) {
-      console.error('Failed to get all users:', err);
-      throw err;
-    }
+    return (results.results || []).map(
+      (result: any) => result.username as string
+    );
   }
 
-  // 管理员配置相关
+  // ---------- 管理员配置 ----------
   async getAdminConfig(): Promise<AdminConfig | null> {
     try {
-      const db = await this.getDatabase();
-      const result = await db
+      const result = await this.db
         .prepare('SELECT config FROM admin_config WHERE id = 1')
         .first<{ config: string }>();
 
@@ -464,10 +481,9 @@ export class D1Storage implements IStorage {
 
   async setAdminConfig(config: AdminConfig): Promise<void> {
     try {
-      const db = await this.getDatabase();
-      await db
+      await this.db
         .prepare(
-          'INSERT OR REPLACE INTO admin_config (id, config) VALUES (1, ?)',
+          'INSERT OR REPLACE INTO admin_config (id, config) VALUES (1, ?)'
         )
         .bind(JSON.stringify(config))
         .run();
@@ -481,107 +497,107 @@ export class D1Storage implements IStorage {
   async getSkipConfig(
     userName: string,
     source: string,
-    id: string,
+    id: string
   ): Promise<SkipConfig | null> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare(
-          'SELECT * FROM skip_configs WHERE username = ? AND source = ? AND id_video = ?',
-        )
-        .bind(userName, source, id)
-        .first<any>();
+    const userId = await this.getUserId(userName);
+    if (!userId) return null;
 
-      if (!result) return null;
+    const result = await this.db
+      .prepare(
+        'SELECT * FROM skip_configs WHERE user_id = ? AND source = ? AND video_id = ?'
+      )
+      .bind(userId, source, id)
+      .first();
 
-      return {
-        enable: Boolean(result.enable),
-        intro_time: result.intro_time,
-        outro_time: result.outro_time,
-      };
-    } catch (err) {
-      console.error('Failed to get skip config:', err);
-      throw err;
-    }
+    if (!result) return null;
+
+    return {
+      enable: Boolean(result.enable),
+      intro_time: result.intro_time as number,
+      outro_time: result.outro_time as number,
+    };
   }
 
   async setSkipConfig(
     userName: string,
     source: string,
     id: string,
-    config: SkipConfig,
+    config: SkipConfig
   ): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare(
-          `
-          INSERT OR REPLACE INTO skip_configs 
-          (username, source, id_video, enable, intro_time, outro_time)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `,
-        )
-        .bind(
-          userName,
-          source,
-          id,
-          config.enable ? 1 : 0,
-          config.intro_time,
-          config.outro_time,
-        )
-        .run();
-    } catch (err) {
-      console.error('Failed to set skip config:', err);
-      throw err;
-    }
+    const userId = await this.ensureUser(userName);
+
+    await this.db
+      .prepare(
+        `
+        INSERT INTO skip_configs (user_id, source, video_id, enable, intro_time, outro_time)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, source, video_id)
+        DO UPDATE SET
+          enable = excluded.enable,
+          intro_time = excluded.intro_time,
+          outro_time = excluded.outro_time,
+          updated_at = CURRENT_TIMESTAMP
+      `
+      )
+      .bind(
+        userId,
+        source,
+        id,
+        config.enable ? 1 : 0,
+        config.intro_time ?? 0,
+        config.outro_time ?? 0
+      )
+      .run();
   }
 
   async deleteSkipConfig(
     userName: string,
     source: string,
-    id: string,
+    id: string
   ): Promise<void> {
-    try {
-      const db = await this.getDatabase();
-      await db
-        .prepare(
-          'DELETE FROM skip_configs WHERE username = ? AND source = ? AND id_video = ?',
-        )
-        .bind(userName, source, id)
-        .run();
-    } catch (err) {
-      console.error('Failed to delete skip config:', err);
-      throw err;
-    }
+    const userId = await this.getUserId(userName);
+    if (!userId) return;
+
+    await this.db
+      .prepare(
+        'DELETE FROM skip_configs WHERE user_id = ? AND source = ? AND video_id = ?'
+      )
+      .bind(userId, source, id)
+      .run();
   }
 
   async getAllSkipConfigs(
-    userName: string,
+    userName: string
   ): Promise<{ [key: string]: SkipConfig }> {
-    try {
-      const db = await this.getDatabase();
-      const result = await db
-        .prepare(
-          'SELECT source, id_video, enable, intro_time, outro_time FROM skip_configs WHERE username = ?',
-        )
-        .bind(userName)
-        .all<any>();
+    const userId = await this.getUserId(userName);
+    if (!userId) return {};
 
-      const configs: { [key: string]: SkipConfig } = {};
+    const results = await this.db
+      .prepare('SELECT * FROM skip_configs WHERE user_id = ?')
+      .bind(userId)
+      .all();
 
-      result.results.forEach((row) => {
-        const key = `${row.source}+${row.id_video}`;
-        configs[key] = {
-          enable: Boolean(row.enable),
-          intro_time: row.intro_time,
-          outro_time: row.outro_time,
-        };
-      });
-
-      return configs;
-    } catch (err) {
-      console.error('Failed to get all skip configs:', err);
-      throw err;
+    const configs: { [key: string]: SkipConfig } = {};
+    for (const result of results.results || []) {
+      const key = `${result.source}+${result.video_id}`;
+      configs[key] = {
+        enable: Boolean(result.enable),
+        intro_time: result.intro_time as number,
+        outro_time: result.outro_time as number,
+      };
     }
+
+    return configs;
+  }
+
+  // 清空所有数据
+  async clearAllData(): Promise<void> {
+    // 删除所有表的数据
+    await this.db.prepare('DELETE FROM play_records').run();
+    await this.db.prepare('DELETE FROM favorites').run();
+    await this.db.prepare('DELETE FROM search_history').run();
+    await this.db.prepare('DELETE FROM skip_configs').run();
+    await this.db.prepare('DELETE FROM users').run();
+    await this.db.prepare('DELETE FROM admin_config').run();
   }
 }

@@ -1,19 +1,49 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,no-console */
-import { getCacheTime, getConfig } from '@/lib/config';
+
+import { NextRequest } from 'next/server';
+
+import { getAuthInfoFromCookie } from '@/lib/auth';
+import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
 import { searchFromApiStream } from '@/lib/downstream';
 import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'edge';
 
-export async function GET(request: Request)
-{
+export async function GET(request: NextRequest) {
+  // 检查是否为本地存储模式
+  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  const isLocalStorage = storageType === 'localstorage';
+  
+  let authInfo = null;
+  if (!isLocalStorage) {
+    // 非本地存储模式才需要认证
+    authInfo = getAuthInfoFromCookie(request);
+    if (!authInfo || !authInfo.username) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), { 
+        status: 401,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
   const streamParam = searchParams.get('stream');
-  const enableStream = streamParam !== '0'; // 默认开启流式
+  const enableStream = streamParam ? streamParam !== '0' : false; // 无该参数关闭流式
+  const timeoutParam = searchParams.get('timeout');
+  const timeout = timeoutParam ? parseInt(timeoutParam, 10) * 1000 : undefined; // 转换为毫秒
 
   const config = await getConfig();
-  const apiSites = config.SourceConfig.filter((site) => !site.disabled);
+  
+  // 获取用户可用的搜索源
+  let apiSites = await getAvailableApiSites(authInfo?.username);
+  
+  // 如果指定了搜索源，只使用选中的搜索源
+  const selectedSourcesParam = searchParams.get('sources');
+  if (selectedSourcesParam) {
+    const selectedSources = selectedSourcesParam.split(',');
+    apiSites = apiSites.filter(site => selectedSources.includes(site.key));
+  }
 
   const encoder = new TextEncoder();
   const { readable, writable } = new TransformStream();
@@ -70,11 +100,9 @@ export async function GET(request: Request)
     {
       const siteResults: any[] = [];
       let hasResults = false;
-      try
-      {
-        const generator = searchFromApiStream(site, query);
-        for await (const pageResults of generator)
-        {
+      try {
+        const generator = searchFromApiStream(site, query, true, timeout);
+        for await (const pageResults of generator) {
           let filteredResults = pageResults;
           if (filteredResults.length !== 0)
           {
@@ -99,11 +127,21 @@ export async function GET(request: Request)
           throw new Error('无搜索结果');
         }
         return { siteResults, failed: null };
-      } catch (err: any)
-      {
+      } catch (err: any) {
+        let errorMessage = err.message || '未知的错误';
+        
+        // 根据错误类型提供更具体的错误信息
+        if (err.message === '请求超时') {
+          errorMessage = '请求超时';
+        } else if (err.message === '网络连接失败') {
+          errorMessage = '网络连接失败';
+        } else if (err.message.includes('网络错误')) {
+          errorMessage = '网络错误';
+        }
+        
         return {
           siteResults: [],
-          failed: { name: site.name, key: site.key, error: err.message || '未知的错误' },
+          failed: { name: site.name, key: site.key, error: errorMessage },
         };
       }
     });
@@ -112,9 +150,9 @@ export async function GET(request: Request)
     const aggregatedResults = results.flatMap((r) => r.siteResults);
     const failedSources = results.filter((r) => r.failed).map((r) => r.failed);
 
-    if (aggregatedResults.length === 0)
-    {
-      return new Response(JSON.stringify({ aggregatedResults, failedSources }), {
+    if (aggregatedResults.length === 0) {
+      const body = { results: [], failedSources };
+      return new Response(JSON.stringify(body), {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': 'no-store, no-cache, must-revalidate',
@@ -125,7 +163,8 @@ export async function GET(request: Request)
     } else
     {
       const cacheTime = await getCacheTime();
-      return new Response(JSON.stringify({ aggregatedResults, failedSources }), {
+      const body = { results: aggregatedResults, failedSources };
+      return new Response(JSON.stringify(body), {
         headers: {
           'Content-Type': 'application/json; charset=utf-8',
           'Cache-Control': `private, max-age=${cacheTime}`,
@@ -142,11 +181,9 @@ export async function GET(request: Request)
     const aggregatedResults: any[] = [];
     const failedSources: { name: string; key: string; error: string; }[] = [];
 
-    const tasks = apiSites.map(async (site) =>
-    {
-      try
-      {
-        const generator = searchFromApiStream(site, query);
+    const tasks = apiSites.map(async (site) => {
+      try {
+        const generator = searchFromApiStream(site, query, true, timeout);
         let hasResults = false;
 
         for await (const pageResults of generator)
@@ -187,7 +224,18 @@ export async function GET(request: Request)
       } catch (err: any)
       {
         console.warn(`搜索失败 ${site.name}:`, err.message);
-        failedSources.push({ name: site.name, key: site.key, error: err.message || '未知的错误' });
+        let errorMessage = err.message || '未知的错误';
+        
+        // 根据错误类型提供更具体的错误信息
+        if (err.message === '请求超时') {
+          errorMessage = '请求超时';
+        } else if (err.message === '请求失败') {
+          errorMessage = '请求失败';
+        } else if (err.message.includes('网络错误')) {
+          errorMessage = '网络错误';
+        }
+        
+        failedSources.push({ name: site.name, key: site.key, error: errorMessage });
         await safeWrite({ failedSources });
       }
     });

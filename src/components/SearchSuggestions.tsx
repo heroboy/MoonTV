@@ -13,7 +13,6 @@ interface SearchSuggestionsProps
 interface SuggestionItem
 {
   text: string;
-  type: 'exact' | 'related' | 'suggestion';
 }
 
 export default function SearchSuggestions({
@@ -25,6 +24,7 @@ export default function SearchSuggestions({
 {
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [isEnabled, setIsEnabled] = useState<boolean>(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -75,7 +75,6 @@ export default function SearchSuggestions({
                 ...prev,
                 ...parsed.suggestions.map((s: any) => ({
                   text: s.text,
-                  type: s.type || 'related',
                 })),
               ]);
             }
@@ -94,15 +93,37 @@ export default function SearchSuggestions({
   }, []);
 
 
+  // 加载搜索建议设置
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedEnableSearchSuggestions = localStorage.getItem('enableSearchSuggestions');
+      if (savedEnableSearchSuggestions !== null) {
+        setIsEnabled(savedEnableSearchSuggestions === 'true');
+      }
+      
+      // 监听设置变化事件，实现实时更新
+      const handleSettingsChange = (event: Event) => {
+        const customEvent = event as CustomEvent<{ enableSearchSuggestions: boolean }>;
+        if (customEvent.detail?.enableSearchSuggestions !== undefined) {
+          setIsEnabled(customEvent.detail.enableSearchSuggestions);
+        }
+      };
+      
+      window.addEventListener('searchSettingsChanged', handleSettingsChange);
+      
+      return () => {
+        window.removeEventListener('searchSettingsChanged', handleSettingsChange);
+      };
+    }
+  }, []);
+
   // 防抖触发
   const debouncedFetchSuggestions = useCallback(
     (searchQuery: string) =>
     {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      debounceTimer.current = setTimeout(() =>
-      {
-        if (searchQuery.trim() && isVisible)
-        {
+      debounceTimer.current = setTimeout(() => {
+        if (searchQuery.trim() && isVisible && isEnabled) {
           setSuggestions([]); // 新查询清空旧数据
           fetchSuggestionsFromAPI(searchQuery);
         } else
@@ -112,13 +133,11 @@ export default function SearchSuggestions({
         }
       }, 300);
     },
-    [isVisible, fetchSuggestionsFromAPI]
+    [isVisible, isEnabled, fetchSuggestionsFromAPI]
   );
 
-  useEffect(() =>
-  {
-    if (!query.trim() || !isVisible)
-    {
+  useEffect(() => {
+    if (!query.trim() || !isVisible || !isEnabled) {
       setSuggestions([]);
       setSelectedIndex(-1);
       return;
@@ -130,7 +149,7 @@ export default function SearchSuggestions({
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
       if (abortControllerRef.current) abortControllerRef.current.abort();
     };
-  }, [query, isVisible, debouncedFetchSuggestions]);
+  }, [query, isVisible, isEnabled, debouncedFetchSuggestions]);
 
   // 键盘导航
   useEffect(() =>
@@ -192,7 +211,7 @@ export default function SearchSuggestions({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isVisible, onClose]);
 
-  if (!isVisible || suggestions.length === 0) return null;
+  if (!isVisible || !isEnabled || suggestions.length === 0) return null;
 
   return (
     <div

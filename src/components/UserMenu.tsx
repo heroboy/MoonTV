@@ -21,6 +21,7 @@ import { createPortal } from 'react-dom';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import { checkForUpdates, CURRENT_VERSION, UpdateStatus } from '@/lib/version';
 
+import { useNavigationLoading } from './NavigationLoadingProvider';
 import { VersionPanel } from './VersionPanel';
 
 interface AuthInfo
@@ -32,6 +33,7 @@ interface AuthInfo
 export const UserMenu: React.FC = () =>
 {
   const router = useRouter();
+  const { startLoading } = useNavigationLoading();
   const [isOpen, setIsOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
@@ -43,6 +45,7 @@ export const UserMenu: React.FC = () =>
   // 设置相关状态
   const [defaultAggregateSearch, setDefaultAggregateSearch] = useState(true);
   const [defaultStreamSearch, setDefaultStreamSearch] = useState(true);
+  const [simpleMode, setSimpleMode] = useState(false);
   const [doubanProxyUrl, setDoubanProxyUrl] = useState('');
 
   const [doubanDataSource, setDoubanDataSource] = useState('direct');
@@ -87,6 +90,31 @@ export const UserMenu: React.FC = () =>
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null);
   const [isChecking, setIsChecking] = useState(true);
 
+  // TVBox 设置
+  const [tvboxEnabled, setTvboxEnabled] = useState(false);
+  const [tvboxPassword, setTvboxPassword] = useState('');
+  const [tvboxUrl, setTvboxUrl] = useState('');
+  const isPrivileged = (authInfo?.role === 'owner' || authInfo?.role === 'admin');
+
+  const fetchTvboxConfig = async () => {
+    try {
+      const res = await fetch('/api/admin/tvbox', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setTvboxEnabled(!!data.enabled);
+      setTvboxPassword(data.password || '');
+      setTvboxUrl(data.url || '');
+    } catch (err) {
+      console.warn('Failed to load TVBox admin config:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isSettingsOpen) {
+      fetchTvboxConfig();
+    }
+  }, [isSettingsOpen]);
+
   // 确保组件已挂载
   useEffect(() =>
   {
@@ -126,6 +154,11 @@ export const UserMenu: React.FC = () =>
       if (savedDefaultStreamSearch !== null)
       {
         setDefaultStreamSearch(JSON.parse(savedDefaultStreamSearch));
+      }
+
+      const savedSimpleMode = localStorage.getItem('simpleMode');
+      if (savedSimpleMode !== null) {
+        setSimpleMode(JSON.parse(savedSimpleMode));
       }
 
       const savedDoubanDataSource = localStorage.getItem('doubanDataSource');
@@ -270,8 +303,8 @@ export const UserMenu: React.FC = () =>
     window.location.href = '/';
   };
 
-  const handleAdminPanel = () =>
-  {
+  const handleAdminPanel = () => {
+    startLoading();
     router.push('/admin');
   };
 
@@ -373,8 +406,19 @@ export const UserMenu: React.FC = () =>
     }
   };
 
-  const handleDoubanProxyUrlChange = (value: string) =>
-  {
+  const handleSimpleModeToggle = (value: boolean) => {
+    setSimpleMode(value);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('simpleMode', JSON.stringify(value));
+    }
+    // 简洁模式变化时关闭设置并刷新页面
+    setIsSettingsOpen(false);
+    setTimeout(() => {
+      window.location.reload();
+    }, 100);
+  };
+
+  const handleDoubanProxyUrlChange = (value: string) => {
     setDoubanProxyUrl(value);
     if (typeof window !== 'undefined')
     {
@@ -444,6 +488,7 @@ export const UserMenu: React.FC = () =>
 
     setDefaultAggregateSearch(true);
     setDefaultStreamSearch(true);
+    setSimpleMode(false);
 
     setDoubanProxyUrl(defaultDoubanProxy);
     setDoubanDataSource(defaultDoubanProxyType);
@@ -454,6 +499,7 @@ export const UserMenu: React.FC = () =>
     {
       localStorage.setItem('defaultAggregateSearch', JSON.stringify(true));
       localStorage.setItem('defaultStreamSearch', JSON.stringify(true));
+      localStorage.setItem('simpleMode', JSON.stringify(false));
 
       localStorage.setItem('doubanProxyUrl', defaultDoubanProxy);
       localStorage.setItem('doubanDataSource', defaultDoubanProxyType);
@@ -641,7 +687,10 @@ export const UserMenu: React.FC = () =>
 
         {/* 设置项 */}
         <div className='space-y-6'>
-          {/* 豆瓣数据源选择 */}
+          {/* 简洁模式下隐藏所有代理相关设置 */}
+          {!simpleMode && (
+            <>
+              {/* 豆瓣数据源选择 */}
           <div className='space-y-3'>
             <div>
               <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
@@ -853,6 +902,8 @@ export const UserMenu: React.FC = () =>
 
           {/* 分割线 */}
           <div className='border-t border-gray-200 dark:border-gray-700'></div>
+            </>
+          )}
 
           {/* 默认聚合搜索结果 */}
           <div className='flex items-center justify-between'>
@@ -902,7 +953,115 @@ export const UserMenu: React.FC = () =>
             </label>
           </div>
 
+          {/* 分割线 */}
+          <div className='border-t border-gray-200 dark:border-gray-700'></div>
 
+          {/* TVBox 接口状态 */}
+          <div className='space-y-3'>
+            <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+              TVBox 接口
+            </h4>
+            
+            {/* 状态和接口地址同行 */}
+            <div className='flex items-center gap-3'>
+              {/* 状态徽章 */}
+              <div className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium shrink-0 ${
+                tvboxEnabled 
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400' 
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+              }`}>
+                <div className={`w-2 h-2 rounded-full ${
+                  tvboxEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'
+                }`} />
+                <span>{tvboxEnabled ? '已开启' : '未开启'}</span>
+              </div>
+              
+              {/* 接口地址 */}
+              {tvboxEnabled && tvboxUrl ? (
+                <>
+                  <input
+                    ref={(input) => {
+                      if (input) {
+                        const url = new URL(tvboxUrl);
+                        url.searchParams.set('pwd', tvboxPassword || '');
+                        input.value = url.toString();
+                      }
+                    }}
+                    type='text'
+                    className='flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                    readOnly
+                  />
+                  <button
+                    type='button'
+                    className='shrink-0 px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors'
+                    onClick={(e) => {
+                      const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                      navigator.clipboard.writeText(input.value);
+                    }}
+                  >
+                    复制
+                  </button>
+                </>
+              ) : (
+                !tvboxEnabled && (
+                  <span className='text-xs text-gray-500 dark:text-gray-400'>
+                    {storageType === 'localstorage' 
+                      ? '请修改环境变量 TVBOX_ENABLED 以开启' 
+                      : (isPrivileged ? '请前往管理面板的站点配置中开启' : '请联系管理员开启')
+                    }
+                  </span>
+                )
+              )}
+            </div>
+            
+            {/* 说明文字和提示 */}
+            {tvboxEnabled && tvboxUrl && (
+              <div className='space-y-2'>
+                <p className='text-xs text-gray-500 dark:text-gray-400'>
+                  将该地址填入 TVBox 的订阅/配置接口即可使用。
+                </p>
+                
+                {storageType === 'localstorage' && (
+                  <p className='text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg'>
+                    💡 本地模式，开关由环境变量 TVBOX_ENABLED 控制，口令为 PASSWORD
+                  </p>
+                )}
+                
+                {isPrivileged && storageType !== 'localstorage' && (
+                  <p className='text-xs text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-lg'>
+                    💡 如需修改 TVBox 配置（开关/密码），请前往管理面板的站点配置
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 分割线 */}
+          <div className='border-t border-gray-200 dark:border-gray-700'></div>
+
+          {/* 简洁模式设置 */}
+          <div className='flex items-center justify-between'>
+            <div>
+              <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                简洁模式
+              </h4>
+              <p className='text-xs text-gray-500 dark:text-gray-400 mt-1'>
+                开启后导航栏只保留首页和搜索，首页只保留继续观看和收藏夹
+              </p>
+            </div>
+            <label className='flex items-center cursor-pointer'>
+              <div className='relative'>
+                <input
+                  type='checkbox'
+                  className='sr-only peer'
+                  checked={simpleMode}
+                  onChange={(e) => handleSimpleModeToggle(e.target.checked)}
+                />
+                <div className='w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-green-500 transition-colors dark:bg-gray-600'></div>
+                <div className='absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-transform peer-checked:translate-x-5'></div>
+              </div>
+            </label>
+          </div>
         </div>
 
         {/* 底部说明 */}

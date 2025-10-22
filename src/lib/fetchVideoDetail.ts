@@ -8,6 +8,7 @@ interface FetchVideoDetailOptions
   source: string;
   id: string;
   fallbackTitle?: string;
+  timeout?: number; // 超时时间（毫秒）
 }
 
 /**
@@ -17,8 +18,8 @@ export async function fetchVideoDetail({
   source,
   id,
   fallbackTitle = '',
-}: FetchVideoDetailOptions): Promise<SearchResult>
-{
+  timeout,
+}: FetchVideoDetailOptions): Promise<SearchResult> {
   const apiSites = await getAvailableApiSites();
   const apiSite = apiSites.find((site) => site.key === source);
   if (!apiSite)
@@ -27,12 +28,9 @@ export async function fetchVideoDetail({
   }
 
   // 使用流式搜索尝试精确匹配
-  if (fallbackTitle)
-  {
-    try
-    {
-      for await (const results of searchFromApiStream(apiSite, fallbackTitle.trim()))
-      {
+  if (fallbackTitle) {
+    try {
+      for await (const results of searchFromApiStream(apiSite, fallbackTitle.trim(), true, timeout)) {
         const exactMatch = results.find(
           (item: SearchResult) =>
             item.source.toString() === source.toString() &&
